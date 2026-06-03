@@ -91,49 +91,47 @@ export function ColorPalette({
       )}
 
       <div className="space-y-2">
-  <span className="text-sm font-medium text-foreground">All Colors</span>
+        <span className="text-sm font-medium text-foreground">All Colors</span>
 
-  <div className="grid grid-cols-8 gap-2">
-    {MAT_COLORS.map((color) => (
-      <Tooltip key={color.code}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => onSelect(color.code)}
-            className={cn(
-              "group relative h-10 w-10 rounded-md border-2 overflow-hidden transition-all",
-              "hover:scale-110",
-              selectedCode === color.code
-                ? "border-foreground shadow-md ring-2 ring-foreground/20"
-                : "border-border hover:border-muted-foreground",
-              suggestedCodes.includes(color.code) &&
-                selectedCode !== color.code
-                ? "ring-1 ring-amber-400"
-                : ""
-            )}
-            style={getSwatchStyle(color)}
-            aria-label={`${color.name} (${color.code})`}
-            title={`${color.name} (${color.code})`}
-          >
-            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+        <div className="grid grid-cols-8 gap-2">
+          {MAT_COLORS.map((color) => (
+            <Tooltip key={color.code}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onSelect(color.code)}
+                  className={cn(
+                    "group relative h-9 w-9 rounded-md border-2 overflow-hidden transition-all",
+                    "hover:scale-110",
+                    selectedCode === color.code
+                      ? "border-foreground shadow-md ring-2 ring-foreground/20"
+                      : "border-border hover:border-muted-foreground",
+                    suggestedCodes.includes(color.code) &&
+                      selectedCode !== color.code
+                      ? "ring-1 ring-amber-400"
+                      : ""
+                  )}
+                  style={getSwatchStyle(color)}
+                  aria-label={`${color.name} (${color.code})`}
+                  title={`${color.name} (${color.code})`}
+                >
+                  <span className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
 
-            {selectedCode === color.code && (
-              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white/90 text-[9px] font-bold text-black shadow">
-                ✓
-              </span>
-            )}
-          </button>
-        </TooltipTrigger>
+                  {selectedCode === color.code && (
+                    <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white/90 text-[9px] font-bold text-black shadow">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
 
-        <TooltipContent side="top">
-          <p className="font-medium">{color.name}</p>
-          <p className="text-xs text-muted-foreground">{color.code}</p>
-        </TooltipContent>
-      </Tooltip>
-    ))}
-  </div>
-</div>
-        </ScrollArea>
+              <TooltipContent side="top">
+                <p className="font-medium">{color.name}</p>
+                <p className="text-xs text-muted-foreground">{color.code}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
       </div>
     </div>
   );
