@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -65,6 +64,9 @@ export function MatConfigurator() {
   }, [])
 
   const handleLogoUpload = useCallback((file: File, dataUrl: string) => {
+    // Reset oude AI-suggesties zodra een nieuw logo wordt geladen
+    setSuggestedColorCodes([])
+
     updateConfig({
       logo: {
         ...config.logo,
@@ -89,7 +91,7 @@ export function MatConfigurator() {
         size: { ...config.size, isCustom: true },
       })
     } else {
-      const size = STANDARD_SIZES.find(s => `${s.width}x${s.height}` === sizeString)
+      const size = STANDARD_SIZES.find((s) => `${s.width}x${s.height}` === sizeString)
       if (size) {
         updateConfig({
           size: { width: size.width, height: size.height, isCustom: false },
@@ -108,7 +110,11 @@ export function MatConfigurator() {
     setSuggestedColorCodes(codes)
   }, [])
 
-  const selectedColor = MAT_COLORS.find(c => c.code === config.colorCode)
+  const handleResetSuggestions = useCallback(() => {
+    setSuggestedColorCodes([])
+  }, [])
+
+  const selectedColor = MAT_COLORS.find((c) => c.code === config.colorCode)
 
   return (
     <div className="min-h-screen bg-background">
@@ -145,6 +151,7 @@ export function MatConfigurator() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Configure Your Mat</CardTitle>
             </CardHeader>
+
             <CardContent className="flex-1 overflow-hidden p-0">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
@@ -161,7 +168,7 @@ export function MatConfigurator() {
                     Logo
                   </TabsTrigger>
                 </TabsList>
-                
+
                 <ScrollArea className="flex-1">
                   <div className="px-4 py-4">
                     <TabsContent value="mat" className="mt-0 space-y-6">
@@ -281,9 +288,11 @@ export function MatConfigurator() {
                                 min={30}
                                 max={300}
                                 value={config.size.width}
-                                onChange={(e) => updateConfig({
-                                  size: { ...config.size, width: parseInt(e.target.value) || 30 }
-                                })}
+                                onChange={(e) =>
+                                  updateConfig({
+                                    size: { ...config.size, width: parseInt(e.target.value) || 30 },
+                                  })
+                                }
                               />
                             </div>
                             <div className="space-y-1.5">
@@ -293,9 +302,11 @@ export function MatConfigurator() {
                                 min={30}
                                 max={300}
                                 value={config.size.height}
-                                onChange={(e) => updateConfig({
-                                  size: { ...config.size, height: parseInt(e.target.value) || 30 }
-                                })}
+                                onChange={(e) =>
+                                  updateConfig({
+                                    size: { ...config.size, height: parseInt(e.target.value) || 30 },
+                                  })
+                                }
                               />
                             </div>
                           </div>
@@ -335,9 +346,11 @@ export function MatConfigurator() {
                             min={1}
                             max={100}
                             value={config.quantity}
-                            onChange={(e) => updateConfig({
-                              quantity: Math.max(1, Math.min(100, parseInt(e.target.value) || 1))
-                            })}
+                            onChange={(e) =>
+                              updateConfig({
+                                quantity: Math.max(1, Math.min(100, parseInt(e.target.value) || 1)),
+                              })
+                            }
                             className="w-20 text-center"
                           />
                           <Button
@@ -377,6 +390,7 @@ export function MatConfigurator() {
                         selectedCode={config.colorCode}
                         onSelect={(code) => updateConfig({ colorCode: code })}
                         suggestedCodes={suggestedColorCodes}
+                        onResetSuggestions={handleResetSuggestions}
                       />
                     </TabsContent>
 
@@ -391,7 +405,7 @@ export function MatConfigurator() {
                       {config.logo.dataUrl && (
                         <>
                           <Separator />
-                          
+
                           {/* Logo Colors for Pricing */}
                           <div className="space-y-3">
                             <Label className="text-sm font-medium">Logo Colors</Label>
@@ -434,10 +448,7 @@ export function MatConfigurator() {
                 </div>
               </CardHeader>
               <CardContent>
-                <MatCanvas
-                  config={config}
-                  onLogoUpdate={handleLogoUpdate}
-                />
+                <MatCanvas config={config} onLogoUpdate={handleLogoUpdate} />
               </CardContent>
             </Card>
 
@@ -449,7 +460,9 @@ export function MatConfigurator() {
               </Card>
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Size</p>
-                <p className="font-medium text-sm">{config.size.width} × {config.size.height} cm</p>
+                <p className="font-medium text-sm">
+                  {config.size.width} × {config.size.height} cm
+                </p>
               </Card>
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Color</p>
