@@ -9,6 +9,7 @@ interface ColorPaletteProps {
   selectedCode: string;
   onSelect: (code: string) => void;
   suggestedCodes?: string[];
+  onResetSuggestions?: () => void;
 }
 
 function getSwatchStyle(color: { hex: string; swatch?: string }) {
@@ -25,18 +26,31 @@ export function ColorPalette({
   selectedCode,
   onSelect,
   suggestedCodes = [],
+  onResetSuggestions,
 }: ColorPaletteProps) {
   return (
     <div className="space-y-4">
       {suggestedCodes.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">
-              Suggested Colors
-            </span>
-            <Badge variant="secondary" className="text-xs">
-              AI Match
-            </Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">
+                Suggested Colors
+              </span>
+              <Badge variant="secondary" className="text-xs">
+                AI Match
+              </Badge>
+            </div>
+
+            {onResetSuggestions && (
+              <button
+                type="button"
+                onClick={onResetSuggestions}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Reset
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3 pb-1">
