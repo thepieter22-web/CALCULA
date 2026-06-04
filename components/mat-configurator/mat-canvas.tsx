@@ -165,6 +165,73 @@ function getRenderedLogoSize(
   return { width, height };
 }
 
+function isNearWhite(r: number, g: number, b: number, threshold = 240) {
+  return r >= threshold && g >= threshold && b >= threshold;
+}
+
+function createProcessedLogoCanvas(
+  image: HTMLImageElement,
+  logoColorCount: number
+) {
+  const offscreen = document.createElement("canvas");
+  offscreen.width = image.width;
+  offscreen.height = image.height;
+
+  const offCtx = offscreen.getContext("2d");
+  if (!offCtx) return null;
+
+  offCtx.clearRect(0, 0, offscreen.width, offscreen.height);
+  offCtx.drawImage(image, 0, 0);
+
+  const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+
+    // volledig transparant = niets doen
+    if (a < 10) continue;
+
+    const nearWhite = isNearWhite(r, g, b, 242);
+
+    // 1-kleur logo preview:
+    // witte delen worden open / transparant zodat de mat erdoor komt
+    if (logoColorCount === 1) {
+      if (nearWhite) {
+        data[i + 3] = 0;
+      } else {
+        // behoud originele kleur maar maak matter / minder digitaal
+        data[i] = Math.round(r * 0.92);
+        data[i + 1] = Math.round(g * 0.92);
+        data[i + 2] = Math.round(b * 0.92);
+        data[i + 3] = Math.round(a * 0.94);
+      }
+    }
+
+    // 2 of meer kleuren:
+    // wit mag zichtbaar blijven, maar niet spierwit
+    else {
+      if (nearWhite) {
+        data[i] = 244;
+        data[i + 1] = 239;
+        data[i + 2] = 230;
+        data[i + 3] = Math.round(a * 0.95);
+      } else {
+        data[i] = Math.round(r * 0.94);
+        data[i + 1] = Math.round(g * 0.94);
+        data[i + 2] = Math.round(b * 0.94);
+        data[i + 3] = Math.round(a * 0.96);
+      }
+    }
+  }
+
+  offCtx.putImageData(imageData, 0, 0);
+  return offscreen;
+}
+
 export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -178,6 +245,9 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     soft: null,
     noise: null,
   });
+
+  // Als jouw type MatConfig nog geen logoColors kent, gebruiken we fallback 1
+  const logoColorCount = Number((config as any).logoColors ?? 1);
 
   // Actual mat dimensions
   const { width: matWidth, height: matHeight } = config.size;
@@ -430,7 +500,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
     // -----------------------------
-    // LOGO RENDERING
+    // LOGO RENDERING (mat-print style)
     // -----------------------------
     if (logoImage && config.logo.dataUrl) {
       const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
@@ -443,45 +513,68 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       const logoCenterX = innerX + innerW * config.logo.position.x;
       const logoCenterY = innerY + innerH * config.logo.position.y;
 
-      ctx.save();
-      ctx.translate(logoCenterX, logoCenterY);
-      ctx.rotate((config.logo.rotation * Math.PI) / 180);
+      const processedLogo = createProcessedLogoCanvas(logoImage, logoColorCount);
 
-      // Soft grounding shadow under logo
-      ctx.shadowColor = "rgba(0,0,0,0.10)";
-      ctx.shadowBlur = Math.max(4, Math.min(logoWidth, logoHeight) * 0.06);
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = Math.max(2, Math.min(logoWidth, logoHeight) * 0.03);
+      if (processedLogo) {
+        ctx.save();
+        ctx.translate(logoCenterX, logoCenterY);
+        ctx.rotate((config.logo.rotation * Math.PI) / 180);
 
-      ctx.globalAlpha = 0.97;
-      ctx.filter = "contrast(1.02) saturate(0.96)";
-      ctx.drawImage(
-        logoImage,
-        -logoWidth / 2,
-        -logoHeight / 2,
-        logoWidth,
-        logoHeight
-      );
+        // Zeer subtiele "ink in mat" schaduw
+        ctx.shadowColor = "rgba(0,0,0,0.06)";
+        ctx.shadowBlur = Math.max(2, Math.min(logoWidth, logoHeight) * 0.025);
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = Math.max(1, Math.min(logoWidth, logoHeight) * 0.015);
 
-      ctx.filter = "none";
-      ctx.globalAlpha = 1;
-      ctx.shadowColor = "transparent";
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
+        // Logo zelf: minder sticker, meer print
+        ctx.globalAlpha = 0.94;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(
+          processedLogo,
+          -logoWidth / 2,
+          -logoHeight / 2,
+          logoWidth,
+          logoHeight
+        );
 
-      // Very subtle noise over the logo so it feels less pasted-on
-      if (textures.noise) {
-        ctx.globalAlpha = 0.05;
-        const logoNoisePattern = createScaledPattern(ctx, textures.noise, 0.3);
-        if (logoNoisePattern) {
-          ctx.fillStyle = logoNoisePattern;
-          ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
+        // Kleine texture/noise over het logo zodat het in de mat zit
+        if (textures.noise) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
+          ctx.clip();
+
+          const logoNoisePattern = createScaledPattern(ctx, textures.noise, 0.28);
+          if (logoNoisePattern) {
+            ctx.globalAlpha = 0.07;
+            ctx.fillStyle = logoNoisePattern;
+            ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
+          }
+
+          ctx.restore();
         }
-        ctx.globalAlpha = 1;
-      }
 
-      ctx.restore();
+        // Zeer lichte top fade zodat het minder hard erop ligt
+        const logoFade = ctx.createLinearGradient(
+          0,
+          -logoHeight / 2,
+          0,
+          logoHeight / 2
+        );
+        logoFade.addColorStop(0, "rgba(255,255,255,0.03)");
+        logoFade.addColorStop(0.5, "rgba(255,255,255,0.00)");
+        logoFade.addColorStop(1, "rgba(0,0,0,0.04)");
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = logoFade;
+        ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
+
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
     }
 
     ctx.restore();
@@ -544,7 +637,15 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       ctx.setLineDash([]);
       ctx.restore();
     }
-  }, [canvasSize, config, logoImage, textures, displayWidth, borderThickness]);
+  }, [
+    canvasSize,
+    config,
+    logoImage,
+    textures,
+    displayWidth,
+    borderThickness,
+    logoColorCount,
+  ]);
 
   useEffect(() => {
     drawCanvas();
@@ -624,8 +725,8 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       innerH
     );
 
-    const halfNormW = (logoWidth / innerW) / 2;
-    const halfNormH = (logoHeight / innerH) / 2;
+    const halfNormW = logoWidth / innerW / 2;
+    const halfNormH = logoHeight / innerH / 2;
 
     const newX = clamp(relX - dragStart.x, halfNormW, 1 - halfNormW);
     const newY = clamp(relY - dragStart.y, halfNormH, 1 - halfNormH);
@@ -662,10 +763,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
           ref={canvasRef}
           width={canvasSize.width}
           height={canvasSize.height}
-          className={cn(
-            "cursor-crosshair",
-            isDragging && "cursor-grabbing"
-          )}
+          className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
