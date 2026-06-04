@@ -136,20 +136,20 @@ export function LogoUploader({
         const dominantColors = await extractDominantColors(dataUrl);
 
         if (dominantColors.length > 0) {
-          // Stap 1: bijna identieke tinten samenvoegen
+          // 1) merge bijna identieke tinten
           const mergedDominantColors = mergeSimilarColors(dominantColors, 32);
 
-          // Stap 2: max 3 echte kleuren gebruiken
-          const effectiveColors = mergedDominantColors.slice(0, 3);
+          // 2) toon nu tot 5 echte kleuren i.p.v. max 3
+          const effectiveColors = mergedDominantColors.slice(0, 5);
 
-          // Stap 3: per echte kleur slechts 1 beste match zoeken
+          // 3) per kleur 1 beste mat-match
           const matchedCodes = getBestSuggestionPerColor(effectiveColors);
 
-          // Stap 4: aantal suggestions limiteren aan aantal echte kleuren
+          // 4) aantal suggestions = aantal echte kleuren (max 5)
           const suggestionCount = Math.min(
             matchedCodes.length,
             effectiveColors.length,
-            3
+            5
           );
 
           onColorSuggestionsFound(matchedCodes.slice(0, suggestionCount));
