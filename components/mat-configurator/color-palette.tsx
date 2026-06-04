@@ -12,13 +12,9 @@ interface ColorPaletteProps {
   onResetSuggestions?: () => void;
 }
 
-function getSwatchStyle(color: { hex: string; swatch?: string }) {
+function getSwatchStyle(color: { hex: string }) {
   return {
     backgroundColor: color.hex,
-    backgroundImage: color.swatch ? `url(${color.swatch})` : undefined,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
   };
 }
 
@@ -28,6 +24,9 @@ export function ColorPalette({
   suggestedCodes = [],
   onResetSuggestions,
 }: ColorPaletteProps) {
+  const selectedColor =
+    MAT_COLORS.find((c) => c.code === selectedCode) ?? MAT_COLORS[0];
+
   return (
     <div className="space-y-4">
       {suggestedCodes.length > 0 && (
@@ -145,6 +144,17 @@ export function ColorPalette({
               </TooltipContent>
             </Tooltip>
           ))}
+        </div>
+
+        <div className="rounded-lg bg-muted/40 p-4 flex items-center gap-3 mt-4">
+          <div
+            className="h-10 w-10 rounded-md border"
+            style={{ backgroundColor: selectedColor.hex }}
+          />
+          <div>
+            <div className="text-sm font-medium">{selectedColor.name}</div>
+            <div className="text-xs text-muted-foreground">{selectedColor.code}</div>
+          </div>
         </div>
       </div>
     </div>
