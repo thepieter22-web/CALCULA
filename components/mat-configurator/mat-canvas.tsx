@@ -265,7 +265,6 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
       continue;
     }
 
-    // Alleen witte achtergrond verwijderen indien het echt een witte achtergrond lijkt
     if (removeWhiteBg && isNearWhite(r, g, b, 245)) {
       data[i + 3] = 0;
     }
@@ -299,7 +298,8 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
 
 function createPrintedLogoCanvas(
   source: HTMLCanvasElement,
-  textureBase: HTMLImageElement | null
+  textureBase: HTMLImageElement | null,
+  textureNoise: HTMLImageElement | null
 ) {
   const printed = document.createElement("canvas");
   printed.width = source.width;
@@ -312,33 +312,58 @@ function createPrintedLogoCanvas(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // Basislogo met originele kleuren
+  // 1) Basislogo met originele kleuren
   ctx.globalAlpha = 0.98;
   ctx.drawImage(source, 0, 0);
 
-  // Heel subtiele textuur enkel binnen de logo-pixels
+  // 2) Vezeltextuur binnen logo
   if (textureBase) {
     ctx.save();
     ctx.globalCompositeOperation = "source-atop";
 
-    const pattern = createScaledPattern(ctx, textureBase, 0.22);
+    const pattern = createScaledPattern(ctx, textureBase, 0.24);
     if (pattern) {
-      ctx.globalAlpha = 0.045;
+      ctx.globalAlpha = 0.11;
       ctx.fillStyle = pattern;
       ctx.fillRect(0, 0, printed.width, printed.height);
     }
+
     ctx.restore();
   }
 
-  // Heel subtiele verticale tonaliteit binnen het logo, zonder rechthoekige waas
+  // 3) Fijne noise binnen logo
+  if (textureNoise) {
+    ctx.save();
+    ctx.globalCompositeOperation = "source-atop";
+
+    const noisePattern = createScaledPattern(ctx, textureNoise, 0.16);
+    if (noisePattern) {
+      ctx.globalAlpha = 0.05;
+      ctx.fillStyle = noisePattern;
+      ctx.fillRect(0, 0, printed.width, printed.height);
+    }
+
+    ctx.restore();
+  }
+
+  // 4) Zachte boven/onder shading voor printgevoel
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
+
   const fade = ctx.createLinearGradient(0, 0, 0, printed.height);
-  fade.addColorStop(0, "rgba(255,255,255,0.015)");
-  fade.addColorStop(0.5, "rgba(255,255,255,0)");
-  fade.addColorStop(1, "rgba(0,0,0,0.035)");
+  fade.addColorStop(0, "rgba(255,255,255,0.03)");
+  fade.addColorStop(0.45, "rgba(255,255,255,0)");
+  fade.addColorStop(1, "rgba(0,0,0,0.08)");
   ctx.fillStyle = fade;
   ctx.fillRect(0, 0, printed.width, printed.height);
+
+  ctx.restore();
+
+  // 5) Heel lichte multiply om stickergevoel weg te nemen
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.globalAlpha = 0.08;
+  ctx.drawImage(source, 0, 0);
   ctx.restore();
 
   ctx.globalAlpha = 1;
@@ -599,7 +624,11 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       const preparedLogo = createPreparedLogoCanvas(logoImage);
 
       if (preparedLogo) {
-        const printedLogo = createPrintedLogoCanvas(preparedLogo, textures.base);
+        const printedLogo = createPrintedLogoCanvas(
+          preparedLogo,
+          textures.base,
+          textures.noise
+        );
 
         const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
           printedLogo,
