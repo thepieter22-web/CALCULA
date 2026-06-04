@@ -208,66 +208,233 @@ export function calculatePrice(config: MatConfig): {
   };
 }
 
-// Color matching helper
+// -----------------------------
+// Color helpers
+// -----------------------------
+function hexToRgbInternal(hex: string) {
+  const clean = hex.replace("#", "").trim();
+
+  const normalized =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : clean;
+
+  const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(normalized);
+
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : { r: 0, g: 0, b: 0 };
+}
+
+function colorDistanceInternal(
+  c1: { r: number; g: number; b: number },
+  c2: { r: number; g: number; b: number }
+) {
+  const dr = c1.r - c2.r;
+  const dg = c1.g - c2.g;
+  const db = c1.b - c2.b;
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function clampChannel(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function quantizeChannel(value: number, step = 24) {
+  return clampChannel(Math.round(value / step) * step);
+}
+
+type DominantCluster = {
+  r: number;
+  g: number;
+  b: number;
+  count: number;
+};
+
+function mergeSimilarDominantClusters(
+  clusters: DominantCluster[],
+  threshold = 34
+): DominantCluster[] {
+  const merged: DominantCluster[] = [];
+
+  for (const cluster of clusters) {
+    const existing = merged.find(
+      (m) =>
+        colorDistanceInternal(
+          { r: cluster.r, g: cluster.g, b: cluster.b },
+          { r: m.r, g: m.g, b: m.b }
+        ) < threshold
+    );
+
+    if (!existing) {
+      merged.push({ ...cluster });
+      continue;
+    }
+
+    const total = existing.count + cluster.count;
+    existing.r = Math.round((existing.r * existing.count + cluster.r * cluster.count) / total);
+    existing.g = Math.round((existing.g * existing.count + cluster.g * cluster.count) / total);
+    existing.b = Math.round((existing.b * existing.count + cluster.b * cluster.count) / total);
+    existing.count = total;
+  }
+
+  return merged.sort((a, b) => b.count - a.count);
+}
+
+// -----------------------------
+// Better color matching helper
+// -----------------------------
 export function findClosestColors(
   imageColors: { r: number; g: number; b: number }[],
   count: number = 3
 ): typeof MAT_COLORS[number][] {
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-      ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16),
-        }
-      : { r: 0, g: 0, b: 0 };
-  };
-
-  const colorDistance = (
-    c1: { r: number; g: number; b: number },
-    c2: { r: number; g: number; b: number }
-  ) => {
-    return Math.sqrt(
-      Math.pow(c1.r - c2.r, 2) +
-        Math.pow(c1.g - c2.g, 2) +
-        Math.pow(c1.b - c2.b, 2)
-    );
-  };
-
   if (imageColors.length === 0) return [];
 
-  // Calculate average color from image colors
-  const avgColor = imageColors.reduce(
-    (acc, c) => ({
-      r: acc.r + c.r / imageColors.length,
-      g: acc.g + c.g / imageColors.length,
-      b: acc.b + c.b / imageColors.length,
-    }),
-    { r: 0, g: 0, b: 0 }
-  );
+  const results: typeof MAT_COLORS[number][] = [];
+  const usedCodes = new Set<string>();
 
-  // Sort mat colors by distance to average
-  const sorted = [...MAT_COLORS].sort((a, b) => {
-    const distA = colorDistance(avgColor, hexToRgb(a.hex));
-    const distB = colorDistance(avgColor, hexToRgb(b.hex));
-    return distA - distB;
-  });
+  for (const imageColor of imageColors) {
+    const sorted = [...MAT_COLORS].sort((a, b) => {
+      const distA = colorDistanceInternal(imageColor, hexToRgbInternal(a.hex));
+      const distB = colorDistanceInternal(imageColor, hexToRgbInternal(b.hex));
+      return distA - distB;
+    });
 
-  // Return top N closest colors (excluding very similar colors)
-  const result: typeof MAT_COLORS[number][] = [];
-  for (const color of sorted) {
-    if (result.length >= count) break;
-    const rgb = hexToRgb(color.hex);
-    const isTooSimilar = result.some(
-      (existing) => colorDistance(rgb, hexToRgb(existing.hex)) < 30
-    );
-    if (!isTooSimilar) {
-      result.push(color);
+    const best = sorted.find((color) => !usedCodes.has(color.code));
+    if (best) {
+      results.push(best);
+      usedCodes.add(best.code);
     }
+
+    if (results.length >= count) break;
   }
 
-  return result;
+  return results;
+}
+
+// -----------------------------
+// Better dominant color extraction
+// -----------------------------
+export async function extractDominantColors(
+  imageDataUrl: string
+): Promise<{ r: number; g: number; b: number }[]> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        resolve([]);
+        return;
+      }
+
+      // iets groter sampelen zodat kleine kleuren (zoals geel) niet verdwijnen
+      const sampleSize = 96;
+      canvas.width = sampleSize;
+      canvas.height = sampleSize;
+
+      ctx.clearRect(0, 0, sampleSize, sampleSize);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+
+      const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+      const data = imageData.data;
+
+      const buckets = new Map<
+        string,
+        { rSum: number; gSum: number; bSum: number; count: number }
+      >();
+
+      let opaquePixelCount = 0;
+
+      // Neem alle pixels mee, behalve bijna transparante
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+
+        // transparante pixels overslaan
+        if (a < 20) continue;
+
+        opaquePixelCount++;
+
+        const qr = quantizeChannel(r, 24);
+        const qg = quantizeChannel(g, 24);
+        const qb = quantizeChannel(b, 24);
+        const key = `${qr},${qg},${qb}`;
+
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.rSum += r;
+          existing.gSum += g;
+          existing.bSum += b;
+          existing.count += 1;
+        } else {
+          buckets.set(key, {
+            rSum: r,
+            gSum: g,
+            bSum: b,
+            count: 1,
+          });
+        }
+      }
+
+      if (opaquePixelCount === 0 || buckets.size === 0) {
+        resolve([]);
+        return;
+      }
+
+      // Zet buckets om naar clusters
+      let clusters: DominantCluster[] = [...buckets.values()]
+        .map((bucket) => ({
+          r: Math.round(bucket.rSum / bucket.count),
+          g: Math.round(bucket.gSum / bucket.count),
+          b: Math.round(bucket.bSum / bucket.count),
+          count: bucket.count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      // Filter mini-ruis weg:
+      // alleen clusters behouden die minstens 1.5% van de niet-transparante pixels voorstellen
+      const minPixels = Math.max(8, Math.round(opaquePixelCount * 0.015));
+      clusters = clusters.filter((cluster) => cluster.count >= minPixels);
+
+      if (clusters.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      // Merge bijna identieke tinten samen
+      clusters = mergeSimilarDominantClusters(clusters, 34);
+
+      // Nogmaals sorteren op belang
+      clusters.sort((a, b) => b.count - a.count);
+
+      // Max 6 dominante kleuren teruggeven
+      const dominant = clusters.slice(0, 6).map((cluster) => ({
+        r: cluster.r,
+        g: cluster.g,
+        b: cluster.b,
+      }));
+
+      resolve(dominant);
+    };
+
+    img.onerror = () => resolve([]);
+    img.src = imageDataUrl;
+  });
 }
 
 // Extract dominant colors from image
