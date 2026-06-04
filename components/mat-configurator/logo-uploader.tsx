@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Upload, FileImage, Loader2, Sparkles } from "lucide-react";
 import { extractDominantColors, findClosestColors } from "@/lib/mat-config";
 import { cn } from "@/lib/utils";
@@ -67,6 +66,10 @@ function rgbDistance(a: RGB, b: RGB) {
   return Math.sqrt(dr * dr + dg * dg + db * db);
 }
 
+/**
+ * Merge bijna identieke kleuren samen
+ * zodat anti-aliasing / zachte randen niet als extra kleur tellen
+ */
 function mergeSimilarColors<T>(colors: T[], threshold = 32): T[] {
   const merged: T[] = [];
 
@@ -74,13 +77,13 @@ function mergeSimilarColors<T>(colors: T[], threshold = 32): T[] {
     const rgb = normalizeColorToRgb(color);
     if (!rgb) continue;
 
-    const exists = merged.some((existing) => {
+    const alreadyExists = merged.some((existing) => {
       const existingRgb = normalizeColorToRgb(existing);
       if (!existingRgb) return false;
       return rgbDistance(rgb, existingRgb) < threshold;
     });
 
-    if (!exists) {
+    if (!alreadyExists) {
       merged.push(color);
     }
   }
@@ -90,6 +93,23 @@ function mergeSimilarColors<T>(colors: T[], threshold = 32): T[] {
 
 function uniqueCodes(codes: string[]) {
   return [...new Set(codes)];
+}
+
+/**
+ * Voor elke echte dominante kleur:
+ * neem slechts de beste dichtste matkleur
+ */
+function getBestSuggestionPerColor(colors: any[]) {
+  const results: string[] = [];
+
+  for (const color of colors) {
+    const closest = findClosestColors([color], 1);
+    if (closest.length > 0) {
+      results.push(closest[0].code);
+    }
+  }
+
+  return uniqueCodes(results);
 }
 
 export function LogoUploader({
@@ -105,6 +125,7 @@ export function LogoUploader({
     if (!file.type.startsWith("image/")) return;
 
     const reader = new FileReader();
+
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
       onUpload(file, dataUrl);
@@ -115,21 +136,23 @@ export function LogoUploader({
         const dominantColors = await extractDominantColors(dataUrl);
 
         if (dominantColors.length > 0) {
-          // Merge kleuren die in de praktijk dezelfde tint zijn
+          // Stap 1: bijna identieke tinten samenvoegen
           const mergedDominantColors = mergeSimilarColors(dominantColors, 32);
 
-          // Als er na merge nog maar 1 echte kleur overblijft,
-          // geef dan ook maar 1 suggestion terug
-          const suggestionCount = mergedDominantColors.length <= 1 ? 1 : 3;
+          // Stap 2: max 3 echte kleuren gebruiken
+          const effectiveColors = mergedDominantColors.slice(0, 3);
 
-          const suggestions = findClosestColors(
-            mergedDominantColors,
-            suggestionCount
+          // Stap 3: per echte kleur slechts 1 beste match zoeken
+          const matchedCodes = getBestSuggestionPerColor(effectiveColors);
+
+          // Stap 4: aantal suggestions limiteren aan aantal echte kleuren
+          const suggestionCount = Math.min(
+            matchedCodes.length,
+            effectiveColors.length,
+            3
           );
 
-          const codes = uniqueCodes(suggestions.map((c) => c.code));
-
-          onColorSuggestionsFound(codes);
+          onColorSuggestionsFound(matchedCodes.slice(0, suggestionCount));
         } else {
           onColorSuggestionsFound([]);
         }
