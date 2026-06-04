@@ -319,7 +319,6 @@ export function MatConfigurator() {
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
                           <Label className="text-sm font-medium">Rubber Border</Label>
-                          <p className="text-xs text-muted-foreground">Adds durability (+15%)</p>
                         </div>
                         <Switch
                           checked={config.rubberBorder}
