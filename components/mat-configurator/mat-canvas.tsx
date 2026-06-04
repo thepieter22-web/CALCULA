@@ -73,7 +73,6 @@ function lightenHex(color: string, amount = 0.12) {
 }
 
 function muteHex(color: string) {
-  // iets minder digitaal / iets meer textiel
   return mixHex(mixHex(color, "#707070", 0.06), "#000000", 0.03);
 }
 
@@ -122,13 +121,14 @@ function createScaledPattern(
   if (!offCtx) return null;
 
   offCtx.imageSmoothingEnabled = true;
+  offCtx.imageSmoothingQuality = "high";
   offCtx.drawImage(image, 0, 0, offscreen.width, offscreen.height);
 
   return ctx.createPattern(offscreen, "repeat");
 }
 
 function getRenderedLogoSize(
-  image: HTMLImageElement,
+  image: HTMLImageElement | HTMLCanvasElement,
   scale: number,
   innerWidth: number,
   innerHeight: number
@@ -165,56 +165,78 @@ function getRenderedLogoSize(
   return { width, height };
 }
 
-function isNearWhite(r: number, g: number, b: number, threshold = 242) {
+function isNearWhite(r: number, g: number, b: number, threshold = 245) {
   return r >= threshold && g >= threshold && b >= threshold;
 }
 
-function getDominantNonWhiteColor(image: HTMLImageElement) {
-  const offscreen = document.createElement("canvas");
-  offscreen.width = image.width;
-  offscreen.height = image.height;
-  const ctx = offscreen.getContext("2d");
-  if (!ctx) return { r: 35, g: 90, b: 160 };
+function findOpaqueBounds(
+  imageData: ImageData,
+  alphaThreshold = 8
+): { left: number; top: number; right: number; bottom: number } | null {
+  const { data, width, height } = imageData;
 
-  ctx.drawImage(image, 0, 0);
-  const { data } = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
 
-  let totalR = 0;
-  let totalG = 0;
-  let totalB = 0;
-  let totalWeight = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const a = data[i + 3];
+      if (a > alphaThreshold) {
+        if (x < left) left = x;
+        if (y < top) top = y;
+        if (x > right) right = x;
+        if (y > bottom) bottom = y;
+      }
+    }
+  }
 
-  for (let i = 0; i < data.length; i += 4) {
+  if (right === -1 || bottom === -1) return null;
+  return { left, top, right, bottom };
+}
+
+function hasLikelyWhiteBackground(image: HTMLImageElement) {
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = Math.min(32, image.width);
+  sampleCanvas.height = Math.min(32, image.height);
+
+  const ctx = sampleCanvas.getContext("2d");
+  if (!ctx) return false;
+
+  ctx.drawImage(image, 0, 0, sampleCanvas.width, sampleCanvas.height);
+  const { data, width, height } = ctx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height);
+
+  const points = [
+    [0, 0],
+    [width - 1, 0],
+    [0, height - 1],
+    [width - 1, height - 1],
+    [Math.floor(width / 2), 0],
+    [0, Math.floor(height / 2)],
+    [width - 1, Math.floor(height / 2)],
+    [Math.floor(width / 2), height - 1],
+  ];
+
+  let whiteHits = 0;
+
+  for (const [x, y] of points) {
+    const i = (y * width + x) * 4;
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
     const a = data[i + 3];
 
-    if (a < 20) continue;
-    if (isNearWhite(r, g, b)) continue;
-
-    const alphaWeight = a / 255;
-    totalR += r * alphaWeight;
-    totalG += g * alphaWeight;
-    totalB += b * alphaWeight;
-    totalWeight += alphaWeight;
+    if (a > 200 && isNearWhite(r, g, b, 245)) {
+      whiteHits++;
+    }
   }
 
-  if (totalWeight === 0) {
-    return { r: 35, g: 90, b: 160 };
-  }
-
-  return {
-    r: Math.round(totalR / totalWeight),
-    g: Math.round(totalG / totalWeight),
-    b: Math.round(totalB / totalWeight),
-  };
+  return whiteHits >= 5;
 }
 
-function createProcessedLogoCanvas(
-  image: HTMLImageElement,
-  logoColorCount: number
-) {
+function createPreparedLogoCanvas(image: HTMLImageElement) {
   const offscreen = document.createElement("canvas");
   offscreen.width = image.width;
   offscreen.height = image.height;
@@ -223,12 +245,14 @@ function createProcessedLogoCanvas(
   if (!ctx) return null;
 
   ctx.clearRect(0, 0, offscreen.width, offscreen.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(image, 0, 0);
+
+  const removeWhiteBg = hasLikelyWhiteBackground(image);
 
   const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
   const data = imageData.data;
-
-  const dominant = getDominantNonWhiteColor(image);
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -236,41 +260,91 @@ function createProcessedLogoCanvas(
     const b = data[i + 2];
     const a = data[i + 3];
 
-    if (a < 10) continue;
+    if (a < 8) {
+      data[i + 3] = 0;
+      continue;
+    }
 
-    const nearWhite = isNearWhite(r, g, b, 242);
-
-    if (logoColorCount <= 1) {
-      // 1 kleur logomat:
-      // wit/open delen -> transparant
-      // alle andere delen -> dominante 1 printkleur
-      if (nearWhite) {
-        data[i + 3] = 0;
-      } else {
-        data[i] = dominant.r;
-        data[i + 1] = dominant.g;
-        data[i + 2] = dominant.b;
-        data[i + 3] = Math.round(a * 0.96);
-      }
-    } else {
-      // 2+ kleuren:
-      // wit mag zichtbaar blijven maar niet spierwit
-      if (nearWhite) {
-        data[i] = 243;
-        data[i + 1] = 238;
-        data[i + 2] = 229;
-        data[i + 3] = Math.round(a * 0.95);
-      } else {
-        data[i] = Math.round(r * 0.96);
-        data[i + 1] = Math.round(g * 0.96);
-        data[i + 2] = Math.round(b * 0.96);
-        data[i + 3] = Math.round(a * 0.96);
-      }
+    // Alleen witte achtergrond verwijderen indien het echt een witte achtergrond lijkt
+    if (removeWhiteBg && isNearWhite(r, g, b, 245)) {
+      data[i + 3] = 0;
     }
   }
 
   ctx.putImageData(imageData, 0, 0);
-  return offscreen;
+
+  const bounds = findOpaqueBounds(ctx.getImageData(0, 0, offscreen.width, offscreen.height), 8);
+  if (!bounds) return offscreen;
+
+  const pad = 2;
+  const sx = Math.max(0, bounds.left - pad);
+  const sy = Math.max(0, bounds.top - pad);
+  const sw = Math.min(offscreen.width - sx, bounds.right - bounds.left + 1 + pad * 2);
+  const sh = Math.min(offscreen.height - sy, bounds.bottom - bounds.top + 1 + pad * 2);
+
+  const cropped = document.createElement("canvas");
+  cropped.width = sw;
+  cropped.height = sh;
+
+  const croppedCtx = cropped.getContext("2d");
+  if (!croppedCtx) return offscreen;
+
+  croppedCtx.clearRect(0, 0, sw, sh);
+  croppedCtx.imageSmoothingEnabled = true;
+  croppedCtx.imageSmoothingQuality = "high";
+  croppedCtx.drawImage(offscreen, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  return cropped;
+}
+
+function createPrintedLogoCanvas(
+  source: HTMLCanvasElement,
+  textureBase: HTMLImageElement | null
+) {
+  const printed = document.createElement("canvas");
+  printed.width = source.width;
+  printed.height = source.height;
+
+  const ctx = printed.getContext("2d");
+  if (!ctx) return source;
+
+  ctx.clearRect(0, 0, printed.width, printed.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  // Basislogo met originele kleuren
+  ctx.globalAlpha = 0.98;
+  ctx.drawImage(source, 0, 0);
+
+  // Heel subtiele textuur enkel binnen de logo-pixels
+  if (textureBase) {
+    ctx.save();
+    ctx.globalCompositeOperation = "source-atop";
+
+    const pattern = createScaledPattern(ctx, textureBase, 0.22);
+    if (pattern) {
+      ctx.globalAlpha = 0.045;
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, printed.width, printed.height);
+    }
+    ctx.restore();
+  }
+
+  // Heel subtiele verticale tonaliteit binnen het logo, zonder rechthoekige waas
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  const fade = ctx.createLinearGradient(0, 0, 0, printed.height);
+  fade.addColorStop(0, "rgba(255,255,255,0.015)");
+  fade.addColorStop(0.5, "rgba(255,255,255,0)");
+  fade.addColorStop(1, "rgba(0,0,0,0.035)");
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 0, printed.width, printed.height);
+  ctx.restore();
+
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+
+  return printed;
 }
 
 export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
@@ -287,10 +361,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     soft: null,
     noise: null,
   });
-
-  const logoColorCount = Number(
-    (config as any).logoColors ?? (config as any).logo?.colorCount ?? 1
-  );
 
   const { width: matWidth, height: matHeight } = config.size;
   const isLandscape = config.orientation === "landscape";
@@ -389,7 +459,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const width = canvasSize.width;
     const height = canvasSize.height;
 
-    // high DPI sharpness
     canvas.width = Math.round(width * pixelRatio);
     canvas.height = Math.round(height * pixelRatio);
     canvas.style.width = `${width}px`;
@@ -420,9 +489,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const topColor = lightenHex(baseColor, 0.06);
     const bottomColor = darkenHex(baseColor, 0.10);
 
-    // -----------------------------
     // SOFT PRODUCT SHADOWS
-    // -----------------------------
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.18)";
     ctx.shadowBlur = 24;
@@ -441,9 +508,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.fill();
     ctx.restore();
 
-    // -----------------------------
     // RUBBER BORDER
-    // -----------------------------
     if (config.rubberBorder) {
       const rubberGradient = ctx.createLinearGradient(0, 0, 0, height);
       rubberGradient.addColorStop(0, "#2a2a2a");
@@ -473,9 +538,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       ctx.restore();
     }
 
-    // -----------------------------
     // MAT SURFACE
-    // -----------------------------
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -494,7 +557,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.fillStyle = sideLight;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // Main texture - much softer than before
     if (textures.base) {
       const pattern = createScaledPattern(ctx, textures.base, 0.35);
       if (pattern) {
@@ -532,79 +594,47 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.fillStyle = pileGradient;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // -----------------------------
-    // LOGO = MAT PRINT LOOK
-    // -----------------------------
+    // LOGO
     if (logoImage && config.logo.dataUrl) {
-      const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-        logoImage,
-        config.logo.scale,
-        innerW,
-        innerH
-      );
+      const preparedLogo = createPreparedLogoCanvas(logoImage);
 
-      const logoCenterX = innerX + innerW * config.logo.position.x;
-      const logoCenterY = innerY + innerH * config.logo.position.y;
+      if (preparedLogo) {
+        const printedLogo = createPrintedLogoCanvas(preparedLogo, textures.base);
 
-      const processedLogo = createProcessedLogoCanvas(logoImage, logoColorCount);
+        const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
+          printedLogo,
+          config.logo.scale,
+          innerW,
+          innerH
+        );
 
-      if (processedLogo) {
+        const logoCenterX = innerX + innerW * config.logo.position.x;
+        const logoCenterY = innerY + innerH * config.logo.position.y;
+
         ctx.save();
         ctx.translate(logoCenterX, logoCenterY);
         ctx.rotate((config.logo.rotation * Math.PI) / 180);
+        ctx.globalAlpha = 0.98;
+        ctx.filter = "none";
+        ctx.globalCompositeOperation = "source-over";
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
 
-        // draw logo base
-        ctx.globalAlpha = 0.96;
         ctx.drawImage(
-          processedLogo,
+          printedLogo,
           -logoWidth / 2,
           -logoHeight / 2,
           logoWidth,
           logoHeight
         );
 
-        // subtle texture within logo (masked)
-        if (textures.base) {
-          ctx.save();
-          ctx.globalCompositeOperation = "source-atop";
-
-          const pattern = createScaledPattern(ctx, textures.base, 0.22);
-          if (pattern) {
-            ctx.globalAlpha = 0.08;
-            ctx.fillStyle = pattern;
-            ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
-          }
-
-          ctx.restore();
-        }
-
-        // subtle tonal fade to remove "sticker" feeling
-        const logoShade = ctx.createLinearGradient(
-          0,
-          -logoHeight / 2,
-          0,
-          logoHeight / 2
-        );
-        logoShade.addColorStop(0, "rgba(255,255,255,0.02)");
-        logoShade.addColorStop(0.5, "rgba(255,255,255,0)");
-        logoShade.addColorStop(1, "rgba(0,0,0,0.05)");
-
-        ctx.globalCompositeOperation = "source-atop";
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = logoShade;
-        ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
-
-        ctx.globalCompositeOperation = "source-over";
-        ctx.globalAlpha = 1;
         ctx.restore();
       }
     }
 
     ctx.restore();
 
-    // -----------------------------
     // EDGE DEPTH
-    // -----------------------------
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -669,7 +699,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     textures,
     logoImage,
     config,
-    logoColorCount,
   ]);
 
   useEffect(() => {
@@ -699,8 +728,11 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
     if (relX < 0 || relX > 1 || relY < 0 || relY > 1) return;
 
+    const preparedLogo = createPreparedLogoCanvas(logoImage);
+    if (!preparedLogo) return;
+
     const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-      logoImage,
+      preparedLogo,
       config.logo.scale,
       innerW,
       innerH
@@ -743,8 +775,11 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const relX = (localX - innerX) / innerW;
     const relY = (localY - innerY) / innerH;
 
+    const preparedLogo = createPreparedLogoCanvas(logoImage);
+    if (!preparedLogo) return;
+
     const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-      logoImage,
+      preparedLogo,
       config.logo.scale,
       innerW,
       innerH
