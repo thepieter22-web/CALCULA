@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { MAT_COLORS, type MatConfig } from "@/lib/mat-config";
 import { Button } from "@/components/ui/button";
 import { RotateCw, ZoomIn, Move, Trash2, Crosshair } from "lucide-react";
@@ -73,8 +73,8 @@ function lightenHex(color: string, amount = 0.12) {
 }
 
 function muteHex(color: string) {
-  // Maakt kleuren iets realistischer / minder digitaal
-  return mixHex(mixHex(color, "#6f6f6f", 0.08), "#000000", 0.04);
+  // iets minder digitaal / iets meer textiel
+  return mixHex(mixHex(color, "#707070", 0.06), "#000000", 0.03);
 }
 
 function roundedRectPath(
@@ -134,7 +134,7 @@ function getRenderedLogoSize(
   innerHeight: number
 ) {
   const aspect = image.width / image.height;
-  const baseSize = Math.min(innerWidth, innerHeight) * 0.36 * scale;
+  const baseSize = Math.min(innerWidth, innerHeight) * 0.42 * scale;
 
   let width: number;
   let height: number;
@@ -147,8 +147,8 @@ function getRenderedLogoSize(
     width = baseSize * aspect;
   }
 
-  const maxWidth = innerWidth * 0.9;
-  const maxHeight = innerHeight * 0.9;
+  const maxWidth = innerWidth * 0.88;
+  const maxHeight = innerHeight * 0.88;
 
   if (width > maxWidth) {
     const ratio = maxWidth / width;
@@ -165,8 +165,50 @@ function getRenderedLogoSize(
   return { width, height };
 }
 
-function isNearWhite(r: number, g: number, b: number, threshold = 240) {
+function isNearWhite(r: number, g: number, b: number, threshold = 242) {
   return r >= threshold && g >= threshold && b >= threshold;
+}
+
+function getDominantNonWhiteColor(image: HTMLImageElement) {
+  const offscreen = document.createElement("canvas");
+  offscreen.width = image.width;
+  offscreen.height = image.height;
+  const ctx = offscreen.getContext("2d");
+  if (!ctx) return { r: 35, g: 90, b: 160 };
+
+  ctx.drawImage(image, 0, 0);
+  const { data } = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+
+  let totalR = 0;
+  let totalG = 0;
+  let totalB = 0;
+  let totalWeight = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+
+    if (a < 20) continue;
+    if (isNearWhite(r, g, b)) continue;
+
+    const alphaWeight = a / 255;
+    totalR += r * alphaWeight;
+    totalG += g * alphaWeight;
+    totalB += b * alphaWeight;
+    totalWeight += alphaWeight;
+  }
+
+  if (totalWeight === 0) {
+    return { r: 35, g: 90, b: 160 };
+  }
+
+  return {
+    r: Math.round(totalR / totalWeight),
+    g: Math.round(totalG / totalWeight),
+    b: Math.round(totalB / totalWeight),
+  };
 }
 
 function createProcessedLogoCanvas(
@@ -177,14 +219,16 @@ function createProcessedLogoCanvas(
   offscreen.width = image.width;
   offscreen.height = image.height;
 
-  const offCtx = offscreen.getContext("2d");
-  if (!offCtx) return null;
+  const ctx = offscreen.getContext("2d");
+  if (!ctx) return null;
 
-  offCtx.clearRect(0, 0, offscreen.width, offscreen.height);
-  offCtx.drawImage(image, 0, 0);
+  ctx.clearRect(0, 0, offscreen.width, offscreen.height);
+  ctx.drawImage(image, 0, 0);
 
-  const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+  const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
   const data = imageData.data;
+
+  const dominant = getDominantNonWhiteColor(image);
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -192,43 +236,40 @@ function createProcessedLogoCanvas(
     const b = data[i + 2];
     const a = data[i + 3];
 
-    // volledig transparant = niets doen
     if (a < 10) continue;
 
     const nearWhite = isNearWhite(r, g, b, 242);
 
-    // 1-kleur logo preview:
-    // witte delen worden open / transparant zodat de mat erdoor komt
-    if (logoColorCount === 1) {
+    if (logoColorCount <= 1) {
+      // 1 kleur logomat:
+      // wit/open delen -> transparant
+      // alle andere delen -> dominante 1 printkleur
       if (nearWhite) {
         data[i + 3] = 0;
       } else {
-        // behoud originele kleur maar maak matter / minder digitaal
-        data[i] = Math.round(r * 0.92);
-        data[i + 1] = Math.round(g * 0.92);
-        data[i + 2] = Math.round(b * 0.92);
-        data[i + 3] = Math.round(a * 0.94);
+        data[i] = dominant.r;
+        data[i + 1] = dominant.g;
+        data[i + 2] = dominant.b;
+        data[i + 3] = Math.round(a * 0.96);
       }
-    }
-
-    // 2 of meer kleuren:
-    // wit mag zichtbaar blijven, maar niet spierwit
-    else {
+    } else {
+      // 2+ kleuren:
+      // wit mag zichtbaar blijven maar niet spierwit
       if (nearWhite) {
-        data[i] = 244;
-        data[i + 1] = 239;
-        data[i + 2] = 230;
+        data[i] = 243;
+        data[i + 1] = 238;
+        data[i + 2] = 229;
         data[i + 3] = Math.round(a * 0.95);
       } else {
-        data[i] = Math.round(r * 0.94);
-        data[i + 1] = Math.round(g * 0.94);
-        data[i + 2] = Math.round(b * 0.94);
+        data[i] = Math.round(r * 0.96);
+        data[i + 1] = Math.round(g * 0.96);
+        data[i + 2] = Math.round(b * 0.96);
         data[i + 3] = Math.round(a * 0.96);
       }
     }
   }
 
-  offCtx.putImageData(imageData, 0, 0);
+  ctx.putImageData(imageData, 0, 0);
   return offscreen;
 }
 
@@ -237,6 +278,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [canvasSize, setCanvasSize] = useState({ width: 600, height: 400 });
+  const [pixelRatio, setPixelRatio] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
@@ -246,10 +288,10 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     noise: null,
   });
 
-  // Als jouw type MatConfig nog geen logoColors kent, gebruiken we fallback 1
-  const logoColorCount = Number((config as any).logoColors ?? 1);
+  const logoColorCount = Number(
+    (config as any).logoColors ?? (config as any).logo?.colorCount ?? 1
+  );
 
-  // Actual mat dimensions
   const { width: matWidth, height: matHeight } = config.size;
   const isLandscape = config.orientation === "landscape";
 
@@ -263,7 +305,16 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
   const borderThickness = config.rubberBorder ? 2 : 0;
 
-  // Canvas responsive sizing
+  const selectedMatColor = useMemo(() => {
+    return MAT_COLORS.find((c) => c.code === config.colorCode)?.hex || "#4a4a4a";
+  }, [config.colorCode]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    }
+  }, []);
+
   useEffect(() => {
     const updateSize = () => {
       if (!containerRef.current) return;
@@ -291,7 +342,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     return () => window.removeEventListener("resize", updateSize);
   }, [displayWidth, displayHeight]);
 
-  // Load logo
   useEffect(() => {
     let mounted = true;
 
@@ -312,7 +362,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     };
   }, [config.logo.dataUrl]);
 
-  // Load textures
   useEffect(() => {
     let mounted = true;
 
@@ -322,11 +371,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       loadImage(TEXTURES.noise).catch(() => null),
     ]).then(([base, soft, noise]) => {
       if (!mounted) return;
-      setTextures({
-        base,
-        soft,
-        noise,
-      });
+      setTextures({ base, soft, noise });
     });
 
     return () => {
@@ -341,10 +386,23 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { width, height } = canvasSize;
-    const scale = width / displayWidth;
+    const width = canvasSize.width;
+    const height = canvasSize.height;
 
+    // high DPI sharpness
+    canvas.width = Math.round(width * pixelRatio);
+    canvas.height = Math.round(height * pixelRatio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    const scale = width / displayWidth;
     const borderPx = borderThickness * scale;
+
     const outerRadius = Math.max(8, Math.min(width, height) * 0.018);
     const innerRadius = Math.max(6, outerRadius - 2);
 
@@ -358,149 +416,124 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const innerW = width - borderPx * 2;
     const innerH = height - borderPx * 2;
 
-    const selectedColor =
-      MAT_COLORS.find((c) => c.code === config.colorCode)?.hex || "#4a4a4a";
-
-    const baseColor = muteHex(selectedColor);
-    const topColor = lightenHex(baseColor, 0.08);
-    const bottomColor = darkenHex(baseColor, 0.12);
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.imageSmoothingEnabled = true;
+    const baseColor = muteHex(selectedMatColor);
+    const topColor = lightenHex(baseColor, 0.06);
+    const bottomColor = darkenHex(baseColor, 0.10);
 
     // -----------------------------
-    // OUTER SHADOWS / DEPTH
+    // SOFT PRODUCT SHADOWS
     // -----------------------------
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.22)";
-    ctx.shadowBlur = Math.max(18, Math.min(width, height) * 0.05);
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = Math.max(8, Math.min(width, height) * 0.024);
-    ctx.fillStyle = "rgba(0,0,0,0.10)";
-    roundedRectPath(ctx, outerX + 2, outerY + 2, outerW - 4, outerH - 4, outerRadius);
+    ctx.shadowColor = "rgba(0,0,0,0.18)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 10;
+    ctx.fillStyle = "rgba(0,0,0,0.06)";
+    roundedRectPath(ctx, outerX + 4, outerY + 4, outerW - 8, outerH - 8, outerRadius);
     ctx.fill();
     ctx.restore();
 
-    // Soft ambient shadow
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.10)";
-    ctx.shadowBlur = Math.max(26, Math.min(width, height) * 0.08);
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = Math.max(4, Math.min(width, height) * 0.012);
-    ctx.fillStyle = "rgba(0,0,0,0.03)";
-    roundedRectPath(ctx, outerX + 6, outerY + 6, outerW - 12, outerH - 12, outerRadius);
+    ctx.shadowColor = "rgba(0,0,0,0.08)";
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = "rgba(0,0,0,0.025)";
+    roundedRectPath(ctx, outerX + 10, outerY + 10, outerW - 20, outerH - 20, outerRadius);
     ctx.fill();
     ctx.restore();
 
     // -----------------------------
-    // RUBBER BORDER / OUTER MAT BODY
+    // RUBBER BORDER
     // -----------------------------
     if (config.rubberBorder) {
       const rubberGradient = ctx.createLinearGradient(0, 0, 0, height);
-      rubberGradient.addColorStop(0, "#2c2c2c");
-      rubberGradient.addColorStop(0.45, "#171717");
-      rubberGradient.addColorStop(1, "#111111");
+      rubberGradient.addColorStop(0, "#2a2a2a");
+      rubberGradient.addColorStop(0.5, "#161616");
+      rubberGradient.addColorStop(1, "#101010");
 
       ctx.save();
       roundedRectPath(ctx, outerX, outerY, outerW, outerH, outerRadius);
       ctx.fillStyle = rubberGradient;
       ctx.fill();
 
-      // Subtle border texture
       if (textures.noise) {
-        const noisePattern = createScaledPattern(ctx, textures.noise, 0.45);
+        const noisePattern = createScaledPattern(ctx, textures.noise, 0.25);
         if (noisePattern) {
-          ctx.globalAlpha = 0.10;
+          ctx.globalAlpha = 0.05;
           ctx.fillStyle = noisePattern;
           ctx.fill();
           ctx.globalAlpha = 1;
         }
       }
 
-      // Outer edge highlight
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      ctx.lineWidth = 1;
       roundedRectPath(ctx, outerX + 0.5, outerY + 0.5, outerW - 1, outerH - 1, outerRadius);
       ctx.stroke();
 
-      // Inner lip shadow in rubber border
-      const borderShadow = ctx.createLinearGradient(0, 0, 0, height);
-      borderShadow.addColorStop(0, "rgba(255,255,255,0.05)");
-      borderShadow.addColorStop(0.2, "rgba(255,255,255,0.01)");
-      borderShadow.addColorStop(1, "rgba(0,0,0,0.20)");
-      ctx.fillStyle = borderShadow;
-      ctx.fill();
       ctx.restore();
     }
 
     // -----------------------------
-    // INNER MAT SURFACE
+    // MAT SURFACE
     // -----------------------------
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
 
-    // Base vertical tonal variation
     const matGradient = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
     matGradient.addColorStop(0, topColor);
-    matGradient.addColorStop(0.42, baseColor);
+    matGradient.addColorStop(0.5, baseColor);
     matGradient.addColorStop(1, bottomColor);
     ctx.fillStyle = matGradient;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // Slight left/right lighting to avoid flatness
     const sideLight = ctx.createLinearGradient(innerX, innerY, innerX + innerW, innerY);
-    sideLight.addColorStop(0, "rgba(255,255,255,0.045)");
-    sideLight.addColorStop(0.35, "rgba(255,255,255,0.01)");
-    sideLight.addColorStop(0.65, "rgba(0,0,0,0.00)");
-    sideLight.addColorStop(1, "rgba(0,0,0,0.06)");
+    sideLight.addColorStop(0, "rgba(255,255,255,0.03)");
+    sideLight.addColorStop(0.4, "rgba(255,255,255,0.01)");
+    sideLight.addColorStop(1, "rgba(0,0,0,0.04)");
     ctx.fillStyle = sideLight;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // Main textile texture
+    // Main texture - much softer than before
     if (textures.base) {
-      const pattern = createScaledPattern(ctx, textures.base, 0.48);
+      const pattern = createScaledPattern(ctx, textures.base, 0.35);
       if (pattern) {
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.11;
         ctx.fillStyle = pattern;
         ctx.fillRect(innerX, innerY, innerW, innerH);
         ctx.globalAlpha = 1;
       }
     }
 
-    // Softer secondary textile layer
     if (textures.soft) {
-      const pattern = createScaledPattern(ctx, textures.soft, 0.55);
+      const pattern = createScaledPattern(ctx, textures.soft, 0.42);
       if (pattern) {
-        ctx.globalAlpha = 0.13;
+        ctx.globalAlpha = 0.07;
         ctx.fillStyle = pattern;
         ctx.fillRect(innerX, innerY, innerW, innerH);
         ctx.globalAlpha = 1;
       }
     }
 
-    // Fine grain / noise
     if (textures.noise) {
-      const pattern = createScaledPattern(ctx, textures.noise, 0.42);
+      const pattern = createScaledPattern(ctx, textures.noise, 0.18);
       if (pattern) {
-        ctx.globalAlpha = 0.06;
+        ctx.globalAlpha = 0.025;
         ctx.fillStyle = pattern;
         ctx.fillRect(innerX, innerY, innerW, innerH);
         ctx.globalAlpha = 1;
       }
     }
 
-    // Soft top sheen / directional pile feel
     const pileGradient = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
-    pileGradient.addColorStop(0, "rgba(255,255,255,0.04)");
-    pileGradient.addColorStop(0.18, "rgba(255,255,255,0.015)");
-    pileGradient.addColorStop(0.5, "rgba(0,0,0,0.00)");
-    pileGradient.addColorStop(1, "rgba(0,0,0,0.06)");
+    pileGradient.addColorStop(0, "rgba(255,255,255,0.03)");
+    pileGradient.addColorStop(0.2, "rgba(255,255,255,0.01)");
+    pileGradient.addColorStop(1, "rgba(0,0,0,0.05)");
     ctx.fillStyle = pileGradient;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
     // -----------------------------
-    // LOGO RENDERING (mat-print style)
+    // LOGO = MAT PRINT LOOK
     // -----------------------------
     if (logoImage && config.logo.dataUrl) {
       const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
@@ -520,15 +553,8 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
         ctx.translate(logoCenterX, logoCenterY);
         ctx.rotate((config.logo.rotation * Math.PI) / 180);
 
-        // Zeer subtiele "ink in mat" schaduw
-        ctx.shadowColor = "rgba(0,0,0,0.06)";
-        ctx.shadowBlur = Math.max(2, Math.min(logoWidth, logoHeight) * 0.025);
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = Math.max(1, Math.min(logoWidth, logoHeight) * 0.015);
-
-        // Logo zelf: minder sticker, meer print
-        ctx.globalAlpha = 0.94;
-        ctx.imageSmoothingEnabled = true;
+        // draw logo base
+        ctx.globalAlpha = 0.96;
         ctx.drawImage(
           processedLogo,
           -logoWidth / 2,
@@ -537,41 +563,38 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
           logoHeight
         );
 
-        // Kleine texture/noise over het logo zodat het in de mat zit
-        if (textures.noise) {
+        // subtle texture within logo (masked)
+        if (textures.base) {
           ctx.save();
-          ctx.beginPath();
-          ctx.rect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
-          ctx.clip();
+          ctx.globalCompositeOperation = "source-atop";
 
-          const logoNoisePattern = createScaledPattern(ctx, textures.noise, 0.28);
-          if (logoNoisePattern) {
-            ctx.globalAlpha = 0.07;
-            ctx.fillStyle = logoNoisePattern;
+          const pattern = createScaledPattern(ctx, textures.base, 0.22);
+          if (pattern) {
+            ctx.globalAlpha = 0.08;
+            ctx.fillStyle = pattern;
             ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
           }
 
           ctx.restore();
         }
 
-        // Zeer lichte top fade zodat het minder hard erop ligt
-        const logoFade = ctx.createLinearGradient(
+        // subtle tonal fade to remove "sticker" feeling
+        const logoShade = ctx.createLinearGradient(
           0,
           -logoHeight / 2,
           0,
           logoHeight / 2
         );
-        logoFade.addColorStop(0, "rgba(255,255,255,0.03)");
-        logoFade.addColorStop(0.5, "rgba(255,255,255,0.00)");
-        logoFade.addColorStop(1, "rgba(0,0,0,0.04)");
+        logoShade.addColorStop(0, "rgba(255,255,255,0.02)");
+        logoShade.addColorStop(0.5, "rgba(255,255,255,0)");
+        logoShade.addColorStop(1, "rgba(0,0,0,0.05)");
+
+        ctx.globalCompositeOperation = "source-atop";
         ctx.globalAlpha = 1;
-        ctx.fillStyle = logoFade;
+        ctx.fillStyle = logoShade;
         ctx.fillRect(-logoWidth / 2, -logoHeight / 2, logoWidth, logoHeight);
 
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
+        ctx.globalCompositeOperation = "source-over";
         ctx.globalAlpha = 1;
         ctx.restore();
       }
@@ -580,56 +603,56 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.restore();
 
     // -----------------------------
-    // INNER SHADOWS / EDGE DEPTH
+    // EDGE DEPTH
     // -----------------------------
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
 
-    const edgeSize = Math.max(10, Math.min(innerW, innerH) * 0.04);
+    const edgeSize = Math.max(10, Math.min(innerW, innerH) * 0.035);
 
-    // Top inner highlight
     const topEdge = ctx.createLinearGradient(0, innerY, 0, innerY + edgeSize);
-    topEdge.addColorStop(0, "rgba(255,255,255,0.06)");
+    topEdge.addColorStop(0, "rgba(255,255,255,0.05)");
     topEdge.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = topEdge;
     ctx.fillRect(innerX, innerY, innerW, edgeSize);
 
-    // Bottom inner shadow
-    const bottomEdge = ctx.createLinearGradient(0, innerY + innerH - edgeSize, 0, innerY + innerH);
+    const bottomEdge = ctx.createLinearGradient(
+      0,
+      innerY + innerH - edgeSize,
+      0,
+      innerY + innerH
+    );
     bottomEdge.addColorStop(0, "rgba(0,0,0,0)");
-    bottomEdge.addColorStop(1, "rgba(0,0,0,0.12)");
+    bottomEdge.addColorStop(1, "rgba(0,0,0,0.10)");
     ctx.fillStyle = bottomEdge;
     ctx.fillRect(innerX, innerY + innerH - edgeSize, innerW, edgeSize);
 
-    // Left inner highlight
-    const leftEdge = ctx.createLinearGradient(innerX, 0, innerX + edgeSize, 0);
-    leftEdge.addColorStop(0, "rgba(255,255,255,0.03)");
-    leftEdge.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = leftEdge;
-    ctx.fillRect(innerX, innerY, edgeSize, innerH);
-
-    // Right inner shadow
-    const rightEdge = ctx.createLinearGradient(innerX + innerW - edgeSize, 0, innerX + innerW, 0);
+    const rightEdge = ctx.createLinearGradient(
+      innerX + innerW - edgeSize,
+      0,
+      innerX + innerW,
+      0
+    );
     rightEdge.addColorStop(0, "rgba(0,0,0,0)");
-    rightEdge.addColorStop(1, "rgba(0,0,0,0.08)");
+    rightEdge.addColorStop(1, "rgba(0,0,0,0.06)");
     ctx.fillStyle = rightEdge;
     ctx.fillRect(innerX + innerW - edgeSize, innerY, edgeSize, innerH);
 
     ctx.restore();
 
-    // Soft top-edge outline for crisp premium finish
+    // Fine outline
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
     ctx.lineWidth = 1;
     roundedRectPath(ctx, innerX + 0.5, innerY + 0.5, innerW - 1, innerH - 1, innerRadius);
     ctx.stroke();
     ctx.restore();
 
-    // Frame indicator if in-floor placement
+    // Frame placement indicator
     if (config.placement === "frame") {
       ctx.save();
-      ctx.strokeStyle = "rgba(110,110,110,0.85)";
+      ctx.strokeStyle = "rgba(110,110,110,0.8)";
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 6]);
       roundedRectPath(ctx, 4, 4, width - 8, height - 8, outerRadius);
@@ -639,11 +662,13 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     }
   }, [
     canvasSize,
-    config,
-    logoImage,
-    textures,
+    pixelRatio,
     displayWidth,
     borderThickness,
+    selectedMatColor,
+    textures,
+    logoImage,
+    config,
     logoColorCount,
   ]);
 
@@ -741,9 +766,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
   };
 
   const handleCenterLogo = () => {
-    onLogoUpdate({
-      position: { x: 0.5, y: 0.5 },
-    });
+    onLogoUpdate({ position: { x: 0.5, y: 0.5 } });
   };
 
   const handleDeleteLogo = () => {
@@ -761,8 +784,6 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
       <div className="relative rounded-lg p-4 flex items-center justify-center bg-[#f3f1ed]">
         <canvas
           ref={canvasRef}
-          width={canvasSize.width}
-          height={canvasSize.height}
           className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
