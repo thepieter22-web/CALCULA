@@ -18,6 +18,22 @@ type TextureSet = {
   noise: HTMLImageElement | null;
 };
 
+type CanvasLayout = {
+  frameThickness: number;
+  borderPx: number;
+  canvasOuterRadius: number;
+  matOuterRadius: number;
+  innerRadius: number;
+  outerX: number;
+  outerY: number;
+  outerW: number;
+  outerH: number;
+  innerX: number;
+  innerY: number;
+  innerW: number;
+  innerH: number;
+};
+
 const TEXTURES = {
   base: "/textures/mat-base.png",
   soft: "/textures/mat-soft.png",
@@ -206,7 +222,12 @@ function hasLikelyWhiteBackground(image: HTMLImageElement) {
   if (!ctx) return false;
 
   ctx.drawImage(image, 0, 0, sampleCanvas.width, sampleCanvas.height);
-  const { data, width, height } = ctx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height);
+  const { data, width, height } = ctx.getImageData(
+    0,
+    0,
+    sampleCanvas.width,
+    sampleCanvas.height
+  );
 
   const points = [
     [0, 0],
@@ -272,14 +293,23 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
 
   ctx.putImageData(imageData, 0, 0);
 
-  const bounds = findOpaqueBounds(ctx.getImageData(0, 0, offscreen.width, offscreen.height), 8);
+  const bounds = findOpaqueBounds(
+    ctx.getImageData(0, 0, offscreen.width, offscreen.height),
+    8
+  );
   if (!bounds) return offscreen;
 
   const pad = 2;
   const sx = Math.max(0, bounds.left - pad);
   const sy = Math.max(0, bounds.top - pad);
-  const sw = Math.min(offscreen.width - sx, bounds.right - bounds.left + 1 + pad * 2);
-  const sh = Math.min(offscreen.height - sy, bounds.bottom - bounds.top + 1 + pad * 2);
+  const sw = Math.min(
+    offscreen.width - sx,
+    bounds.right - bounds.left + 1 + pad * 2
+  );
+  const sh = Math.min(
+    offscreen.height - sy,
+    bounds.bottom - bounds.top + 1 + pad * 2
+  );
 
   const cropped = document.createElement("canvas");
   cropped.width = sw;
@@ -312,11 +342,9 @@ function createPrintedLogoCanvas(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // 1) Basislogo met originele kleuren
   ctx.globalAlpha = 0.98;
   ctx.drawImage(source, 0, 0);
 
-  // 2) Vezeltextuur binnen logo
   if (textureBase) {
     ctx.save();
     ctx.globalCompositeOperation = "source-atop";
@@ -331,7 +359,6 @@ function createPrintedLogoCanvas(
     ctx.restore();
   }
 
-  // 3) Fijne noise binnen logo
   if (textureNoise) {
     ctx.save();
     ctx.globalCompositeOperation = "source-atop";
@@ -346,7 +373,6 @@ function createPrintedLogoCanvas(
     ctx.restore();
   }
 
-  // 4) Zachte boven/onder shading voor printgevoel
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
 
@@ -359,7 +385,6 @@ function createPrintedLogoCanvas(
 
   ctx.restore();
 
-  // 5) Heel lichte multiply om stickergevoel weg te nemen
   ctx.save();
   ctx.globalCompositeOperation = "multiply";
   ctx.globalAlpha = 0.08;
@@ -370,6 +395,65 @@ function createPrintedLogoCanvas(
   ctx.globalCompositeOperation = "source-over";
 
   return printed;
+}
+
+function getCanvasLayout(params: {
+  canvasWidth: number;
+  canvasHeight: number;
+  displayWidth: number;
+  borderThickness: number;
+  isFramePlacement: boolean;
+}): CanvasLayout {
+  const {
+    canvasWidth,
+    canvasHeight,
+    displayWidth,
+    borderThickness,
+    isFramePlacement,
+  } = params;
+
+  const scale = canvasWidth / displayWidth;
+  const rawBorderPx = borderThickness * scale;
+
+  const frameThickness = isFramePlacement
+    ? clamp(Math.min(canvasWidth, canvasHeight) * 0.035, 12, 24)
+    : 0;
+
+  const outerX = frameThickness;
+  const outerY = frameThickness;
+  const outerW = canvasWidth - frameThickness * 2;
+  const outerH = canvasHeight - frameThickness * 2;
+
+  const maxAllowedBorder = Math.min(outerW, outerH) * 0.24;
+  const borderPx = clamp(rawBorderPx, 0, maxAllowedBorder);
+
+  const innerX = outerX + borderPx;
+  const innerY = outerY + borderPx;
+  const innerW = outerW - borderPx * 2;
+  const innerH = outerH - borderPx * 2;
+
+  const canvasOuterRadius = Math.max(
+    8,
+    Math.min(canvasWidth, canvasHeight) * 0.018
+  );
+  const matOuterRadius = Math.max(6, canvasOuterRadius - 2);
+  const innerRadius = Math.max(5, matOuterRadius - 2);
+
+  return {
+    frameThickness,
+    borderPx,
+    canvasOuterRadius,
+    matOuterRadius,
+    innerRadius,
+    outerX,
+    outerY,
+    outerW,
+    outerH,
+    innerX,
+    innerY,
+    innerW,
+    innerH,
+  };
 }
 
 export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
@@ -389,6 +473,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
   const { width: matWidth, height: matHeight } = config.size;
   const isLandscape = config.orientation === "landscape";
+  const isFramePlacement = config.placement === "frame";
 
   const displayWidth = isLandscape
     ? Math.max(matWidth, matHeight)
@@ -494,54 +579,161 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    const scale = width / displayWidth;
-    const borderPx = borderThickness * scale;
+    const layout = getCanvasLayout({
+      canvasWidth: width,
+      canvasHeight: height,
+      displayWidth,
+      borderThickness,
+      isFramePlacement,
+    });
 
-    const outerRadius = Math.max(8, Math.min(width, height) * 0.018);
-    const innerRadius = Math.max(6, outerRadius - 2);
-
-    const outerX = 0;
-    const outerY = 0;
-    const outerW = width;
-    const outerH = height;
-
-    const innerX = borderPx;
-    const innerY = borderPx;
-    const innerW = width - borderPx * 2;
-    const innerH = height - borderPx * 2;
+    const {
+      frameThickness,
+      canvasOuterRadius,
+      matOuterRadius,
+      innerRadius,
+      outerX,
+      outerY,
+      outerW,
+      outerH,
+      innerX,
+      innerY,
+      innerW,
+      innerH,
+    } = layout;
 
     const baseColor = muteHex(selectedMatColor);
     const topColor = lightenHex(baseColor, 0.06);
-    const bottomColor = darkenHex(baseColor, 0.10);
+    const bottomColor = darkenHex(baseColor, 0.1);
 
-    // SOFT PRODUCT SHADOWS
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.18)";
-    ctx.shadowBlur = 24;
-    ctx.shadowOffsetY = 10;
-    ctx.fillStyle = "rgba(0,0,0,0.06)";
-    roundedRectPath(ctx, outerX + 4, outerY + 4, outerW - 8, outerH - 8, outerRadius);
-    ctx.fill();
-    ctx.restore();
+    // Vrijliggende schaduw alleen voor gewone floor placement
+    if (!isFramePlacement) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.18)";
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 10;
+      ctx.fillStyle = "rgba(0,0,0,0.06)";
+      roundedRectPath(
+        ctx,
+        outerX + 4,
+        outerY + 4,
+        outerW - 8,
+        outerH - 8,
+        matOuterRadius
+      );
+      ctx.fill();
+      ctx.restore();
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.08)";
-    ctx.shadowBlur = 40;
-    ctx.shadowOffsetY = 6;
-    ctx.fillStyle = "rgba(0,0,0,0.025)";
-    roundedRectPath(ctx, outerX + 10, outerY + 10, outerW - 20, outerH - 20, outerRadius);
-    ctx.fill();
-    ctx.restore();
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.08)";
+      ctx.shadowBlur = 40;
+      ctx.shadowOffsetY = 6;
+      ctx.fillStyle = "rgba(0,0,0,0.025)";
+      roundedRectPath(
+        ctx,
+        outerX + 10,
+        outerY + 10,
+        outerW - 20,
+        outerH - 20,
+        matOuterRadius
+      );
+      ctx.fill();
+      ctx.restore();
+    }
 
-    // RUBBER BORDER
+    // In-floor frame
+    if (isFramePlacement) {
+      // Subtiele buitenste schaduw van het frame
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.14)";
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
+      roundedRectPath(ctx, 1, 1, width - 2, height - 2, canvasOuterRadius);
+      ctx.fill();
+      ctx.restore();
+
+      // Metalen frame
+      const frameGradient = ctx.createLinearGradient(0, 0, width, height);
+      frameGradient.addColorStop(0, "#f2f2f2");
+      frameGradient.addColorStop(0.16, "#d6d6d6");
+      frameGradient.addColorStop(0.5, "#a3a3a3");
+      frameGradient.addColorStop(0.82, "#d9d9d9");
+      frameGradient.addColorStop(1, "#f7f7f7");
+
+      ctx.save();
+      roundedRectPath(ctx, 0, 0, width, height, canvasOuterRadius);
+      ctx.fillStyle = frameGradient;
+      ctx.fill();
+
+      if (textures.noise) {
+        const metalNoise = createScaledPattern(ctx, textures.noise, 0.22);
+        if (metalNoise) {
+          ctx.globalAlpha = 0.04;
+          ctx.fillStyle = metalNoise;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1;
+      roundedRectPath(ctx, 0.5, 0.5, width - 1, height - 1, canvasOuterRadius);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(90,90,90,0.45)";
+      ctx.lineWidth = 1;
+      roundedRectPath(ctx, 1.5, 1.5, width - 3, height - 3, canvasOuterRadius - 1);
+      ctx.stroke();
+      ctx.restore();
+
+      // Verdiepte opening binnen het frame
+      const recessInset = clamp(frameThickness * 0.16, 2, 5);
+      const recessX = outerX - recessInset;
+      const recessY = outerY - recessInset;
+      const recessW = outerW + recessInset * 2;
+      const recessH = outerH + recessInset * 2;
+
+      const recessGradient = ctx.createLinearGradient(
+        recessX,
+        recessY,
+        recessX,
+        recessY + recessH
+      );
+      recessGradient.addColorStop(0, "rgba(55,55,55,0.34)");
+      recessGradient.addColorStop(0.35, "rgba(25,25,25,0.12)");
+      recessGradient.addColorStop(1, "rgba(0,0,0,0.24)");
+
+      ctx.save();
+      roundedRectPath(ctx, recessX, recessY, recessW, recessH, matOuterRadius);
+      ctx.fillStyle = recessGradient;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      roundedRectPath(
+        ctx,
+        recessX + 0.5,
+        recessY + 0.5,
+        recessW - 1,
+        recessH - 1,
+        matOuterRadius
+      );
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Rubber border rond mat
     if (config.rubberBorder) {
-      const rubberGradient = ctx.createLinearGradient(0, 0, 0, height);
+      const rubberGradient = ctx.createLinearGradient(0, outerY, 0, outerY + outerH);
       rubberGradient.addColorStop(0, "#2a2a2a");
       rubberGradient.addColorStop(0.5, "#161616");
       rubberGradient.addColorStop(1, "#101010");
 
       ctx.save();
-      roundedRectPath(ctx, outerX, outerY, outerW, outerH, outerRadius);
+      roundedRectPath(ctx, outerX, outerY, outerW, outerH, matOuterRadius);
       ctx.fillStyle = rubberGradient;
       ctx.fill();
 
@@ -557,13 +749,20 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
       ctx.strokeStyle = "rgba(255,255,255,0.04)";
       ctx.lineWidth = 1;
-      roundedRectPath(ctx, outerX + 0.5, outerY + 0.5, outerW - 1, outerH - 1, outerRadius);
+      roundedRectPath(
+        ctx,
+        outerX + 0.5,
+        outerY + 0.5,
+        outerW - 1,
+        outerH - 1,
+        matOuterRadius
+      );
       ctx.stroke();
 
       ctx.restore();
     }
 
-    // MAT SURFACE
+    // Mat surface
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -619,7 +818,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.fillStyle = pileGradient;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // LOGO
+    // Logo
     if (logoImage && config.logo.dataUrl) {
       const preparedLogo = createPreparedLogoCanvas(logoImage);
 
@@ -663,7 +862,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
     ctx.restore();
 
-    // EDGE DEPTH
+    // Diepte op matoppervlak
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -700,23 +899,33 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
     ctx.restore();
 
-    // Fine outline
+    // Fijne outline
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    ctx.strokeStyle = isFramePlacement
+      ? "rgba(255,255,255,0.02)"
+      : "rgba(255,255,255,0.04)";
     ctx.lineWidth = 1;
     roundedRectPath(ctx, innerX + 0.5, innerY + 0.5, innerW - 1, innerH - 1, innerRadius);
     ctx.stroke();
     ctx.restore();
 
-    // Frame placement indicator
-    if (config.placement === "frame") {
+    // Extra subtiele ingezonken schaduw in frame mode
+    if (isFramePlacement) {
       ctx.save();
-      ctx.strokeStyle = "rgba(110,110,110,0.8)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
-      roundedRectPath(ctx, 4, 4, width - 8, height - 8, outerRadius);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      roundedRectPath(ctx, outerX, outerY, outerW, outerH, matOuterRadius);
+      ctx.clip();
+
+      const insetShade = ctx.createLinearGradient(
+        0,
+        outerY,
+        0,
+        outerY + Math.max(12, frameThickness)
+      );
+      insetShade.addColorStop(0, "rgba(0,0,0,0.12)");
+      insetShade.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = insetShade;
+      ctx.fillRect(outerX, outerY, outerW, Math.max(12, frameThickness));
+
       ctx.restore();
     }
   }, [
@@ -728,6 +937,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     textures,
     logoImage,
     config,
+    isFramePlacement,
   ]);
 
   useEffect(() => {
@@ -744,13 +954,15 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const localX = e.clientX - rect.left;
     const localY = e.clientY - rect.top;
 
-    const scale = canvasSize.width / displayWidth;
-    const borderPx = borderThickness * scale;
+    const layout = getCanvasLayout({
+      canvasWidth: canvasSize.width,
+      canvasHeight: canvasSize.height,
+      displayWidth,
+      borderThickness,
+      isFramePlacement,
+    });
 
-    const innerX = borderPx;
-    const innerY = borderPx;
-    const innerW = canvasSize.width - borderPx * 2;
-    const innerH = canvasSize.height - borderPx * 2;
+    const { innerX, innerY, innerW, innerH } = layout;
 
     const relX = (localX - innerX) / innerW;
     const relY = (localY - innerY) / innerH;
@@ -793,13 +1005,15 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const localX = e.clientX - rect.left;
     const localY = e.clientY - rect.top;
 
-    const scale = canvasSize.width / displayWidth;
-    const borderPx = borderThickness * scale;
+    const layout = getCanvasLayout({
+      canvasWidth: canvasSize.width,
+      canvasHeight: canvasSize.height,
+      displayWidth,
+      borderThickness,
+      isFramePlacement,
+    });
 
-    const innerX = borderPx;
-    const innerY = borderPx;
-    const innerW = canvasSize.width - borderPx * 2;
-    const innerH = canvasSize.height - borderPx * 2;
+    const { innerX, innerY, innerW, innerH } = layout;
 
     const relX = (localX - innerX) / innerW;
     const relY = (localY - innerY) / innerH;
@@ -933,3 +1147,4 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     </div>
   );
 }
+``
