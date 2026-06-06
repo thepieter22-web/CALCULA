@@ -257,6 +257,54 @@ function hasLikelyWhiteBackground(image: HTMLImageElement) {
   return whiteHits >= 5;
 }
 
+function applyCanvasNoise(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  amount = 10
+) {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha === 0) continue;
+
+    const noise = (Math.random() - 0.5) * amount;
+    data[i] = clamp(data[i] + noise, 0, 255);
+    data[i + 1] = clamp(data[i + 1] + noise, 0, 255);
+    data[i + 2] = clamp(data[i + 2] + noise, 0, 255);
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function softenPureWhites(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+) {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a < 8) continue;
+
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    if (r > 235 && g > 235 && b > 235) {
+      data[i] = 228;
+      data[i + 1] = 228;
+      data[i + 2] = 228;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
 function createPreparedLogoCanvas(image: HTMLImageElement) {
   const offscreen = document.createElement("canvas");
   offscreen.width = image.width;
@@ -292,6 +340,9 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
   }
 
   ctx.putImageData(imageData, 0, 0);
+
+  // Pure whites iets zachter maken zodat ze minder stickerachtig ogen.
+  softenPureWhites(ctx, offscreen.width, offscreen.height);
 
   const bounds = findOpaqueBounds(
     ctx.getImageData(0, 0, offscreen.width, offscreen.height),
@@ -329,6 +380,7 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
 function createPrintedLogoCanvas(
   source: HTMLCanvasElement,
   textureBase: HTMLImageElement | null,
+  textureSoft: HTMLImageElement | null,
   textureNoise: HTMLImageElement | null
 ) {
   const printed = document.createElement("canvas");
@@ -342,59 +394,101 @@ function createPrintedLogoCanvas(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // 1) Basislogo met originele kleuren
-  ctx.globalAlpha = 0.98;
+  // 1) Start met iets gedempte basis zodat het minder "sticker" oogt.
+  ctx.globalAlpha = 0.96;
   ctx.drawImage(source, 0, 0);
 
-  // 2) Vezeltextuur binnen logo
+  // 2) Kleine algemene matte wash.
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  ctx.fillRect(0, 0, printed.width, printed.height);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = "rgba(0,0,0,0.06)";
+  ctx.fillRect(0, 0, printed.width, printed.height);
+  ctx.restore();
+
+  // 3) Laat de basismattextuur mee in het logo spelen.
   if (textureBase) {
     ctx.save();
     ctx.globalCompositeOperation = "source-atop";
-
-    const pattern = createScaledPattern(ctx, textureBase, 0.24);
-    if (pattern) {
-      ctx.globalAlpha = 0.11;
-      ctx.fillStyle = pattern;
+    const basePattern = createScaledPattern(ctx, textureBase, 0.24);
+    if (basePattern) {
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = basePattern;
       ctx.fillRect(0, 0, printed.width, printed.height);
     }
-
     ctx.restore();
   }
 
-  // 3) Fijne noise binnen logo
+  // 4) Zachte vezelstructuur voor textielgevoel.
+  if (textureSoft) {
+    ctx.save();
+    ctx.globalCompositeOperation = "soft-light";
+    const softPattern = createScaledPattern(ctx, textureSoft, 0.28);
+    if (softPattern) {
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = softPattern;
+      ctx.fillRect(0, 0, printed.width, printed.height);
+    }
+    ctx.restore();
+  }
+
+  // 5) Fijne noise voor geprinte vezel-look.
   if (textureNoise) {
     ctx.save();
     ctx.globalCompositeOperation = "source-atop";
-
     const noisePattern = createScaledPattern(ctx, textureNoise, 0.16);
     if (noisePattern) {
-      ctx.globalAlpha = 0.05;
+      ctx.globalAlpha = 0.08;
       ctx.fillStyle = noisePattern;
       ctx.fillRect(0, 0, printed.width, printed.height);
     }
-
     ctx.restore();
   }
 
-  // 4) Zachte boven/onder shading voor printgevoel
+  // 6) Subtiele willekeurige kleurvariatie.
+  applyCanvasNoise(ctx, printed.width, printed.height, 10);
+
+  // 7) Verticale shading zodat het meer "in de pool" zit.
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
-
   const fade = ctx.createLinearGradient(0, 0, 0, printed.height);
-  fade.addColorStop(0, "rgba(255,255,255,0.03)");
+  fade.addColorStop(0, "rgba(255,255,255,0.05)");
   fade.addColorStop(0.45, "rgba(255,255,255,0)");
-  fade.addColorStop(1, "rgba(0,0,0,0.08)");
+  fade.addColorStop(1, "rgba(0,0,0,0.10)");
   ctx.fillStyle = fade;
   ctx.fillRect(0, 0, printed.width, printed.height);
-
   ctx.restore();
 
-  // 5) Heel lichte multiply om stickergevoel weg te nemen
+  // 8) Heel lichte multiply om digitale hardheid te breken.
   ctx.save();
   ctx.globalCompositeOperation = "multiply";
-  ctx.globalAlpha = 0.08;
+  ctx.globalAlpha = 0.10;
   ctx.drawImage(source, 0, 0);
   ctx.restore();
+
+  // 9) Licht verzachten van randen zodat het meer gedrukt oogt.
+  const softened = document.createElement("canvas");
+  softened.width = printed.width;
+  softened.height = printed.height;
+  const sctx = softened.getContext("2d");
+
+  if (sctx) {
+    sctx.clearRect(0, 0, softened.width, softened.height);
+    sctx.filter = "blur(0.6px)";
+    sctx.globalAlpha = 0.92;
+    sctx.drawImage(printed, 0, 0);
+    sctx.filter = "none";
+
+    ctx.clearRect(0, 0, printed.width, printed.height);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(softened, 0, 0);
+  }
 
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -857,6 +951,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
         const printedLogo = createPrintedLogoCanvas(
           preparedLogo,
           textures.base,
+          textures.soft,
           textures.noise
         );
 
@@ -873,12 +968,26 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
         ctx.save();
         ctx.translate(logoCenterX, logoCenterY);
         ctx.rotate((config.logo.rotation * Math.PI) / 180);
-        ctx.globalAlpha = 0.98;
+        ctx.globalAlpha = 0.96;
         ctx.filter = "none";
         ctx.globalCompositeOperation = "source-over";
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
 
+        // Eerst heel subtiele donkere absorptie onder de print
+        ctx.save();
+        ctx.globalAlpha = 0.07;
+        ctx.filter = "blur(1px)";
+        ctx.drawImage(
+          printedLogo,
+          -logoWidth / 2,
+          -logoHeight / 2,
+          logoWidth,
+          logoHeight
+        );
+        ctx.restore();
+
+        // Dan de eigenlijke print
         ctx.drawImage(
           printedLogo,
           -logoWidth / 2,
@@ -940,7 +1049,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     ctx.stroke();
     ctx.restore();
 
-    // Extra subtiele ingezonken shaduw in frame mode
+    // Extra subtiele ingezonken schaduw in frame mode
     if (isFramePlacement) {
       ctx.save();
       roundedRectPath(ctx, outerX, outerY, outerW, outerH, 0);
