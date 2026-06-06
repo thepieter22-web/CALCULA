@@ -41,11 +41,16 @@ const DEFAULT_CONFIG: MatConfig = {
   logoColors: 1,
 }
 
+type IndoorSubtype = "normal" | "eco" | "luxe" | "budget"
+
 export function MatConfigurator() {
   const [config, setConfig] = useState<MatConfig>(DEFAULT_CONFIG)
   const [activeTab, setActiveTab] = useState("mat")
   const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
+
+  // NIEUW: extra state voor indoor subtypes
+  const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
 
   // Load logo image when dataUrl changes
   useEffect(() => {
@@ -63,47 +68,69 @@ export function MatConfigurator() {
     setConfig((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const handleLogoUpload = useCallback((file: File, dataUrl: string) => {
-    // Reset oude AI-suggesties zodra een nieuw logo wordt geladen
-    setSuggestedColorCodes([])
+  // NIEUW: mat type handler zodat indoor subtype mooi mee schakelt
+  const handleMatTypeChange = useCallback(
+    (type: "indoor" | "outdoor") => {
+      updateConfig({ type })
 
-    updateConfig({
-      logo: {
-        ...config.logo,
-        file,
-        dataUrl,
-        position: { x: 0.5, y: 0.5 },
-        scale: 1,
-        rotation: 0,
-      },
-    })
-  }, [config.logo, updateConfig])
-
-  const handleLogoUpdate = useCallback((updates: Partial<MatConfig["logo"]>) => {
-    updateConfig({
-      logo: { ...config.logo, ...updates },
-    })
-  }, [config.logo, updateConfig])
-
-  const handleSizeSelect = useCallback((sizeString: string) => {
-    if (sizeString === "custom") {
-      updateConfig({
-        size: { ...config.size, isCustom: true },
-      })
-    } else {
-      const size = STANDARD_SIZES.find((s) => `${s.width}x${s.height}` === sizeString)
-      if (size) {
-        updateConfig({
-          size: { width: size.width, height: size.height, isCustom: false },
-        })
+      if (type === "indoor") {
+        setIndoorSubtype("normal")
       }
-    }
-  }, [config.size, updateConfig])
+    },
+    [updateConfig]
+  )
+
+  const handleLogoUpload = useCallback(
+    (file: File, dataUrl: string) => {
+      // Reset oude AI-suggesties zodra een nieuw logo wordt geladen
+      setSuggestedColorCodes([])
+
+      updateConfig({
+        logo: {
+          ...config.logo,
+          file,
+          dataUrl,
+          position: { x: 0.5, y: 0.5 },
+          scale: 1,
+          rotation: 0,
+        },
+      })
+    },
+    [config.logo, updateConfig]
+  )
+
+  const handleLogoUpdate = useCallback(
+    (updates: Partial<MatConfig["logo"]>) => {
+      updateConfig({
+        logo: { ...config.logo, ...updates },
+      })
+    },
+    [config.logo, updateConfig]
+  )
+
+  const handleSizeSelect = useCallback(
+    (sizeString: string) => {
+      if (sizeString === "custom") {
+        updateConfig({
+          size: { ...config.size, isCustom: true },
+        })
+      } else {
+        const size = STANDARD_SIZES.find((s) => `${s.width}x${s.height}` === sizeString)
+        if (size) {
+          updateConfig({
+            size: { width: size.width, height: size.height, isCustom: false },
+          })
+        }
+      }
+    },
+    [config.size, updateConfig]
+  )
 
   const handleReset = useCallback(() => {
     setConfig(DEFAULT_CONFIG)
     setSuggestedColorCodes([])
     setLogoImage(null)
+    setIndoorSubtype("normal")
   }, [])
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
@@ -177,7 +204,8 @@ export function MatConfigurator() {
                         <Label className="text-sm font-medium">Mat Type</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
-                            onClick={() => updateConfig({ type: "indoor" })}
+                            type="button"
+                            onClick={() => handleMatTypeChange("indoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.type === "indoor"
                                 ? "border-foreground bg-foreground/5"
@@ -187,8 +215,10 @@ export function MatConfigurator() {
                             <div className="font-medium text-sm">Indoor</div>
                             <div className="text-xs text-muted-foreground">Soft carpet finish</div>
                           </button>
+
                           <button
-                            onClick={() => updateConfig({ type: "outdoor" })}
+                            type="button"
+                            onClick={() => handleMatTypeChange("outdoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.type === "outdoor"
                                 ? "border-foreground bg-foreground/5"
@@ -201,11 +231,72 @@ export function MatConfigurator() {
                         </div>
                       </div>
 
+                      {/* NIEUW: Indoor Type - enkel zichtbaar bij Indoor */}
+                      {config.type === "indoor" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Indoor Type</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("normal")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "normal"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Normal</div>
+                              <div className="text-xs text-muted-foreground">Standard quality</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("eco")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "eco"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Eco</div>
+                              <div className="text-xs text-muted-foreground">Sustainable option</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("luxe")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "luxe"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Luxe</div>
+                              <div className="text-xs text-muted-foreground">Premium finish</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("budget")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "budget"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Budget</div>
+                              <div className="text-xs text-muted-foreground">Entry-level option</div>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Placement */}
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Placement</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
+                            type="button"
                             onClick={() => updateConfig({ placement: "floor" })}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.placement === "floor"
@@ -217,6 +308,7 @@ export function MatConfigurator() {
                             <div className="text-xs text-muted-foreground">Standard placement</div>
                           </button>
                           <button
+                            type="button"
                             onClick={() => updateConfig({ placement: "frame" })}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.placement === "frame"
@@ -235,6 +327,7 @@ export function MatConfigurator() {
                         <Label className="text-sm font-medium">Orientation</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
+                            type="button"
                             onClick={() => updateConfig({ orientation: "landscape" })}
                             className={`p-3 rounded-lg border-2 transition-all ${
                               config.orientation === "landscape"
@@ -246,6 +339,7 @@ export function MatConfigurator() {
                             <div className="text-xs">Landscape</div>
                           </button>
                           <button
+                            type="button"
                             onClick={() => updateConfig({ orientation: "portrait" })}
                             className={`p-3 rounded-lg border-2 transition-all ${
                               config.orientation === "portrait"
@@ -320,10 +414,7 @@ export function MatConfigurator() {
                         <div className="space-y-0.5">
                           <Label className="text-sm font-medium">Rubber Border</Label>
                         </div>
-                        <Switch
-                          checked={config.rubberBorder}
-                          onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
-                        />
+                        <Switch checked={config.rubberBorder} onCheckedChange={(v) => updateConfig({ rubberBorder: v })} />
                       </div>
 
                       <Separator />
@@ -456,6 +547,9 @@ export function MatConfigurator() {
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Type</p>
                 <p className="font-medium text-sm capitalize">{config.type}</p>
+                {config.type === "indoor" && (
+                  <p className="text-xs text-muted-foreground capitalize mt-1">{indoorSubtype}</p>
+                )}
               </Card>
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Size</p>
