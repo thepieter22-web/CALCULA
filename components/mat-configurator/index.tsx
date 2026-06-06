@@ -42,6 +42,8 @@ const DEFAULT_CONFIG: MatConfig = {
 }
 
 type IndoorSubtype = "normal" | "eco" | "luxe" | "budget"
+type OutdoorSubtype = "outdoor1" | "outdoor2" | "outdoor3" | "outdoor4"
+type VisibleTypeBlock = "indoor" | "outdoor" | null
 
 export function MatConfigurator() {
   const [config, setConfig] = useState<MatConfig>(DEFAULT_CONFIG)
@@ -49,8 +51,14 @@ export function MatConfigurator() {
   const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
 
-  // NIEUW: extra state voor indoor subtypes
+  // Subtypes
   const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
+  const [outdoorSubtype, setOutdoorSubtype] = useState<OutdoorSubtype>("outdoor1")
+
+  // BELANGRIJK:
+  // Deze state bepaalt of er een extra subtype-blok zichtbaar is.
+  // Start op null = bij openen geen extra blok tonen.
+  const [visibleTypeBlock, setVisibleTypeBlock] = useState<VisibleTypeBlock>(null)
 
   // Load logo image when dataUrl changes
   useEffect(() => {
@@ -68,13 +76,17 @@ export function MatConfigurator() {
     setConfig((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  // NIEUW: mat type handler zodat indoor subtype mooi mee schakelt
   const handleMatTypeChange = useCallback(
     (type: "indoor" | "outdoor") => {
       updateConfig({ type })
+      setVisibleTypeBlock(type)
 
       if (type === "indoor") {
         setIndoorSubtype("normal")
+      }
+
+      if (type === "outdoor") {
+        setOutdoorSubtype("outdoor1")
       }
     },
     [updateConfig]
@@ -82,7 +94,6 @@ export function MatConfigurator() {
 
   const handleLogoUpload = useCallback(
     (file: File, dataUrl: string) => {
-      // Reset oude AI-suggesties zodra een nieuw logo wordt geladen
       setSuggestedColorCodes([])
 
       updateConfig({
@@ -131,6 +142,8 @@ export function MatConfigurator() {
     setSuggestedColorCodes([])
     setLogoImage(null)
     setIndoorSubtype("normal")
+    setOutdoorSubtype("outdoor1")
+    setVisibleTypeBlock(null) // reset = opnieuw geen subtype-blok zichtbaar
   }, [])
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
@@ -207,7 +220,7 @@ export function MatConfigurator() {
                             type="button"
                             onClick={() => handleMatTypeChange("indoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
-                              config.type === "indoor"
+                              visibleTypeBlock === "indoor"
                                 ? "border-foreground bg-foreground/5"
                                 : "border-border hover:border-muted-foreground"
                             }`}
@@ -220,7 +233,7 @@ export function MatConfigurator() {
                             type="button"
                             onClick={() => handleMatTypeChange("outdoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
-                              config.type === "outdoor"
+                              visibleTypeBlock === "outdoor"
                                 ? "border-foreground bg-foreground/5"
                                 : "border-border hover:border-muted-foreground"
                             }`}
@@ -231,8 +244,8 @@ export function MatConfigurator() {
                         </div>
                       </div>
 
-                      {/* NIEUW: Indoor Type - enkel zichtbaar bij Indoor */}
-                      {config.type === "indoor" && (
+                      {/* Indoor Type - pas zichtbaar NA klik op Indoor */}
+                      {visibleTypeBlock === "indoor" && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Indoor Type</Label>
                           <div className="grid grid-cols-2 gap-2">
@@ -286,6 +299,66 @@ export function MatConfigurator() {
                             >
                               <div className="font-medium text-sm">Budget</div>
                               <div className="text-xs text-muted-foreground">Entry-level option</div>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Outdoor Type - pas zichtbaar NA klik op Outdoor */}
+                      {visibleTypeBlock === "outdoor" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Outdoor Type</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor1")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor1"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 1</div>
+                              <div className="text-xs text-muted-foreground">Standard outdoor use</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor2")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor2"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 2</div>
+                              <div className="text-xs text-muted-foreground">Extra scraper effect</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor3")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor3"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 3</div>
+                              <div className="text-xs text-muted-foreground">Heavy-duty option</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor4")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor4"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 4</div>
+                              <div className="text-xs text-muted-foreground">Premium outdoor finish</div>
                             </button>
                           </div>
                         </div>
@@ -414,7 +487,10 @@ export function MatConfigurator() {
                         <div className="space-y-0.5">
                           <Label className="text-sm font-medium">Rubber Border</Label>
                         </div>
-                        <Switch checked={config.rubberBorder} onCheckedChange={(v) => updateConfig({ rubberBorder: v })} />
+                        <Switch
+                          checked={config.rubberBorder}
+                          onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
+                        />
                       </div>
 
                       <Separator />
@@ -461,7 +537,6 @@ export function MatConfigurator() {
                     </TabsContent>
 
                     <TabsContent value="colors" className="mt-0 space-y-6">
-                      {/* Current Selection */}
                       {selectedColor && (
                         <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                           <div
@@ -475,7 +550,6 @@ export function MatConfigurator() {
                         </div>
                       )}
 
-                      {/* Color Palette */}
                       <ColorPalette
                         selectedCode={config.colorCode}
                         onSelect={(code) => updateConfig({ colorCode: code })}
@@ -485,7 +559,6 @@ export function MatConfigurator() {
                     </TabsContent>
 
                     <TabsContent value="logo" className="mt-0 space-y-6">
-                      {/* Logo Upload */}
                       <LogoUploader
                         currentFile={config.logo.file}
                         onUpload={handleLogoUpload}
@@ -496,7 +569,6 @@ export function MatConfigurator() {
                         <>
                           <Separator />
 
-                          {/* Logo Colors for Pricing */}
                           <div className="space-y-3">
                             <Label className="text-sm font-medium">Logo Colors</Label>
                             <Select
@@ -529,7 +601,6 @@ export function MatConfigurator() {
 
           {/* Preview Panel */}
           <div className="space-y-6">
-            {/* Live Canvas */}
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -542,15 +613,20 @@ export function MatConfigurator() {
               </CardContent>
             </Card>
 
-            {/* Quick Info */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Type</p>
                 <p className="font-medium text-sm capitalize">{config.type}</p>
-                {config.type === "indoor" && (
+
+                {visibleTypeBlock === "indoor" && (
                   <p className="text-xs text-muted-foreground capitalize mt-1">{indoorSubtype}</p>
                 )}
+
+                {visibleTypeBlock === "outdoor" && (
+                  <p className="text-xs text-muted-foreground capitalize mt-1">{outdoorSubtype}</p>
+                )}
               </Card>
+
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground">Size</p>
                 <p className="font-medium text-sm">
