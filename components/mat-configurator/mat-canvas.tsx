@@ -1213,14 +1213,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
       </div>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          Canvas: {canvasSize.width} × {canvasSize.height} px
-        </span>
-        <span>
-          Mat size: {displayWidth} × {displayHeight} cm
-        </span>
-      </div>
+     
 
       {config.logo.dataUrl && (
         <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
