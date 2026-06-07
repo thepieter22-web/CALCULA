@@ -1200,7 +1200,7 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
   return (
     <div ref={containerRef} className="space-y-4">
-      <div className="relative rounded-lg p-4 flex items-center justify-center bg-[#f3f1ed]">
+    <div className="relative flex items-center justify-center">
        <canvas
   ref={canvasRef}
   data-mat-canvas="true"
