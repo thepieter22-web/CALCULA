@@ -34,15 +34,21 @@ type SceneConfig = {
 
 const FRAME_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-  leftPct: 0.36,
-  topPct: 0.78,
-  widthPct: 0.42,
-  heightPct: 0.2,
-  rotateDeg: -2,
-  skewXDeg: -4,
-  scaleYPct: 0.92,
+
+  // Nieuwe positie voor jouw deurfoto
+  leftPct: 0.39,
+  topPct: 0.71,
+  widthPct: 0.36,
+  heightPct: 0.16,
+
+  // Lichte perspectiefcorrectie
+  rotateDeg: -3,
+  skewXDeg: -7,
+  scaleYPct: 0.90,
+
   frameMarginPx: 10,
   frameColor: "#f3f3ef",
+
   shadowBlur: 0,
   shadowOffsetY: 0,
   shadowColor: "rgba(0,0,0,0)",
@@ -50,18 +56,24 @@ const FRAME_SCENE: SceneConfig = {
 
 const FLOOR_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-  leftPct: 0.36,
-  topPct: 0.78,
-  widthPct: 0.42,
-  heightPct: 0.2,
-  rotateDeg: -2,
-  skewXDeg: -4,
-  scaleYPct: 0.92,
+
+  // Nieuwe positie voor jouw deurfoto
+  leftPct: 0.39,
+  topPct: 0.71,
+  widthPct: 0.36,
+  heightPct: 0.16,
+
+  // Mat mag iets subtiel in perspectief maar niet overdreven
+  rotateDeg: -3,
+  skewXDeg: -7,
+  scaleYPct: 0.90,
+
   frameMarginPx: 0,
   frameColor: "#ffffff",
-  shadowBlur: 20,
-  shadowOffsetY: 12,
-  shadowColor: "rgba(0,0,0,0.25)",
+
+  shadowBlur: 18,
+  shadowOffsetY: 10,
+  shadowColor: "rgba(0,0,0,0.22)",
 };
 
 function degToRad(deg: number) {
@@ -126,6 +138,7 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
     const ctx = out.getContext("2d");
     if (!ctx) return null;
 
+    // Achtergrondfoto
     ctx.drawImage(bgImg, 0, 0, out.width, out.height);
 
     const x = out.width * scene.leftPct;
@@ -136,11 +149,19 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
     const cx = x + w / 2;
     const cy = y + h / 2;
 
+    // Extra frame voor frame-placement
     if (config.placement === "frame" && scene.frameMarginPx > 0) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(degToRad(scene.rotateDeg));
-      ctx.transform(1, 0, Math.tan(degToRad(scene.skewXDeg)), scene.scaleYPct, 0, 0);
+      ctx.transform(
+        1,
+        0,
+        Math.tan(degToRad(scene.skewXDeg)),
+        scene.scaleYPct,
+        0,
+        0
+      );
 
       ctx.fillStyle = scene.frameColor;
       ctx.fillRect(
@@ -149,28 +170,46 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
         w + scene.frameMarginPx * 2,
         h + scene.frameMarginPx * 2
       );
+
       ctx.restore();
     }
 
+    // Schaduw bij floor placement
     if (config.placement !== "frame") {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(degToRad(scene.rotateDeg));
-      ctx.transform(1, 0, Math.tan(degToRad(scene.skewXDeg)), scene.scaleYPct, 0, 0);
+      ctx.transform(
+        1,
+        0,
+        Math.tan(degToRad(scene.skewXDeg)),
+        scene.scaleYPct,
+        0,
+        0
+      );
 
       ctx.shadowColor = scene.shadowColor;
       ctx.shadowBlur = scene.shadowBlur;
       ctx.shadowOffsetY = scene.shadowOffsetY;
+
       ctx.fillStyle = "rgba(0,0,0,0.08)";
       ctx.fillRect(-w / 2, -h / 2, w, h);
 
       ctx.restore();
     }
 
+    // Mat zelf
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(degToRad(scene.rotateDeg));
-    ctx.transform(1, 0, Math.tan(degToRad(scene.skewXDeg)), scene.scaleYPct, 0, 0);
+    ctx.transform(
+      1,
+      0,
+      Math.tan(degToRad(scene.skewXDeg)),
+      scene.scaleYPct,
+      0,
+      0
+    );
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -246,11 +285,7 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
 
           {renderedImage && (
             <div className="space-y-4">
-              <img
-                src={renderedImage}
-                alt="Rendered entrance preview"
-                className="w-full rounded-xl border shadow-lg"
-              />
+              {renderedImage}
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
