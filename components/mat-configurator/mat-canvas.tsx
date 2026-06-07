@@ -340,8 +340,6 @@ function createPreparedLogoCanvas(image: HTMLImageElement) {
   }
 
   ctx.putImageData(imageData, 0, 0);
-
-  // Wit wat zachter maken zodat het minder “stickerachtig” oogt
   softenPureWhites(ctx, offscreen.width, offscreen.height);
 
   const bounds = findOpaqueBounds(
@@ -394,11 +392,9 @@ function createPrintedLogoCanvas(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // 1) Basislogo
   ctx.globalAlpha = 0.96;
   ctx.drawImage(source, 0, 0);
 
-  // 2) Mask van enkel de echte logo-vorm
   const mask = document.createElement("canvas");
   mask.width = source.width;
   mask.height = source.height;
@@ -408,21 +404,18 @@ function createPrintedLogoCanvas(
   maskCtx.clearRect(0, 0, mask.width, mask.height);
   maskCtx.drawImage(source, 0, 0);
 
-  // 3) Subtiele lichte wash binnen logo
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
   ctx.fillStyle = "rgba(255,255,255,0.04)";
   ctx.fillRect(0, 0, printed.width, printed.height);
   ctx.restore();
 
-  // 4) Subtiele donkere wash binnen logo
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
   ctx.fillStyle = "rgba(0,0,0,0.05)";
   ctx.fillRect(0, 0, printed.width, printed.height);
   ctx.restore();
 
-  // 5) Basismattextuur - enkel binnen de logo-vorm
   if (textureBase) {
     const overlay = document.createElement("canvas");
     overlay.width = source.width;
@@ -448,7 +441,6 @@ function createPrintedLogoCanvas(
     }
   }
 
-  // 6) Zachte extra textuur - subtiel en enkel binnen logo
   if (textureSoft) {
     const overlay = document.createElement("canvas");
     overlay.width = source.width;
@@ -474,7 +466,6 @@ function createPrintedLogoCanvas(
     }
   }
 
-  // 7) Fijne noise - enkel binnen logo
   if (textureNoise) {
     const overlay = document.createElement("canvas");
     overlay.width = source.width;
@@ -500,7 +491,6 @@ function createPrintedLogoCanvas(
     }
   }
 
-  // 8) Verticale shading binnen het logo
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
   const fade = ctx.createLinearGradient(0, 0, 0, printed.height);
@@ -511,7 +501,6 @@ function createPrintedLogoCanvas(
   ctx.fillRect(0, 0, printed.width, printed.height);
   ctx.restore();
 
-  // 9) Mini noise op effectieve logopixels
   applyCanvasNoise(ctx, printed.width, printed.height, 4);
 
   ctx.globalAlpha = 1;
@@ -621,6 +610,22 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
 
   const borderThickness = config.rubberBorder ? 2 : 0;
 
+  // Alleen visuele correctie voor de LIVE PREVIEW
+  // Productlogica blijft 2 cm
+  const longestSideCm = Math.max(displayWidth, displayHeight);
+
+  const previewBorderVisualFactor = !config.rubberBorder
+    ? 1
+    : longestSideCm <= 60
+    ? 0.88
+    : longestSideCm <= 85
+    ? 0.94
+    : longestSideCm <= 115
+    ? 1.02
+    : 1.12;
+
+  const previewBorderThickness = borderThickness * previewBorderVisualFactor;
+
   const selectedMatColor = useMemo(() => {
     return MAT_COLORS.find((c) => c.code === config.colorCode)?.hex || "#4a4a4a";
   }, [config.colorCode]);
@@ -631,66 +636,63 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     }
   }, []);
 
-useEffect(() => {
-  const updateSize = () => {
-    if (!containerRef.current) return;
+  useEffect(() => {
+    const updateSize = () => {
+      if (!containerRef.current) return;
 
-    const containerWidth = containerRef.current.clientWidth;
-    const maxHeight = 500;
+      const containerWidth = containerRef.current.clientWidth;
+      const maxHeight = 500;
 
-    const availableWidth = containerWidth - 32;
-    const availableHeight = maxHeight;
+      const availableWidth = containerWidth - 32;
+      const availableHeight = maxHeight;
 
-    // Zachtere referentie:
-    // kleine matten blijven kleiner, maar niet té klein
-    const previewReferenceLongestSide = 100;
-    const previewReferenceShortestSide = 75;
+      // Zachtere referentie:
+      // kleine matten blijven kleiner, maar niet té klein
+      const previewReferenceLongestSide = 100;
+      const previewReferenceShortestSide = 75;
 
-    const longestSide = Math.max(displayWidth, displayHeight);
+      const longestSide = Math.max(displayWidth, displayHeight);
 
-    // Basis schaal
-    const scaleX = availableWidth / previewReferenceLongestSide;
-    const scaleY = availableHeight / previewReferenceShortestSide;
-    const baseCmToPx = Math.min(scaleX, scaleY);
+      const scaleX = availableWidth / previewReferenceLongestSide;
+      const scaleY = availableHeight / previewReferenceShortestSide;
+      const baseCmToPx = Math.min(scaleX, scaleY);
 
-    // Kleine matten een lichte visuele boost geven
-    const sizeBoost =
-      longestSide <= 60
-        ? 1.08
-        : longestSide <= 85
-        ? 1.04
-        : 1;
+      const sizeBoost =
+        longestSide <= 60
+          ? 1.08
+          : longestSide <= 85
+          ? 1.04
+          : 1;
 
-    let matWidthPx = displayWidth * baseCmToPx * sizeBoost;
-    let matHeightPx = displayHeight * baseCmToPx * sizeBoost;
+      let matWidthPx = displayWidth * baseCmToPx * sizeBoost;
+      let matHeightPx = displayHeight * baseCmToPx * sizeBoost;
 
-    // Nooit buiten preview laten vallen
-    const fitRatio = Math.min(
-      1,
-      availableWidth / matWidthPx,
-      availableHeight / matHeightPx
-    );
+      const fitRatio = Math.min(
+        1,
+        availableWidth / matWidthPx,
+        availableHeight / matHeightPx
+      );
 
-    matWidthPx *= fitRatio;
-    matHeightPx *= fitRatio;
+      matWidthPx *= fitRatio;
+      matHeightPx *= fitRatio;
 
-    const estimatedFrameThickness = isFramePlacement
-      ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
-      : 0;
+      const estimatedFrameThickness = isFramePlacement
+        ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
+        : 0;
 
-    const totalWidth = matWidthPx + estimatedFrameThickness * 2;
-    const totalHeight = matHeightPx + estimatedFrameThickness * 2;
+      const totalWidth = matWidthPx + estimatedFrameThickness * 2;
+      const totalHeight = matHeightPx + estimatedFrameThickness * 2;
 
-    setCanvasSize({
-      width: Math.max(320, Math.round(totalWidth)),
-      height: Math.max(220, Math.round(totalHeight)),
-    });
-  };
+      setCanvasSize({
+        width: Math.max(320, Math.round(totalWidth)),
+        height: Math.max(220, Math.round(totalHeight)),
+      });
+    };
 
-  updateSize();
-  window.addEventListener("resize", updateSize);
-  return () => window.removeEventListener("resize", updateSize);
-}, [displayWidth, displayHeight, isFramePlacement]);
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [displayWidth, displayHeight, isFramePlacement]);
 
   useEffect(() => {
     let mounted = true;
@@ -753,7 +755,7 @@ useEffect(() => {
       canvasWidth: width,
       canvasHeight: height,
       displayWidth,
-      borderThickness,
+      borderThickness: previewBorderThickness,
       isFramePlacement,
     });
 
@@ -776,7 +778,6 @@ useEffect(() => {
     const topColor = lightenHex(baseColor, 0.06);
     const bottomColor = darkenHex(baseColor, 0.1);
 
-    // Vrijliggende schaduw alleen voor gewone floor placement
     if (!isFramePlacement) {
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.18)";
@@ -811,7 +812,6 @@ useEffect(() => {
       ctx.restore();
     }
 
-    // In-floor frame buiten de mat
     if (isFramePlacement) {
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.14)";
@@ -892,7 +892,6 @@ useEffect(() => {
       ctx.restore();
     }
 
-    // Rubber border
     if (config.rubberBorder) {
       const rubberGradient = ctx.createLinearGradient(0, outerY, 0, outerY + outerH);
       rubberGradient.addColorStop(0, "#2a2a2a");
@@ -929,7 +928,6 @@ useEffect(() => {
       ctx.restore();
     }
 
-    // Matoppervlak
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -985,7 +983,6 @@ useEffect(() => {
     ctx.fillStyle = pileGradient;
     ctx.fillRect(innerX, innerY, innerW, innerH);
 
-    // Logo
     if (logoImage && config.logo.dataUrl) {
       const preparedLogo = createPreparedLogoCanvas(logoImage);
 
@@ -1030,7 +1027,6 @@ useEffect(() => {
 
     ctx.restore();
 
-    // Diepte op matoppervlak
     ctx.save();
     roundedRectPath(ctx, innerX, innerY, innerW, innerH, innerRadius);
     ctx.clip();
@@ -1067,7 +1063,6 @@ useEffect(() => {
 
     ctx.restore();
 
-    // Fijne outline
     ctx.save();
     ctx.strokeStyle = isFramePlacement
       ? "rgba(255,255,255,0.02)"
@@ -1077,7 +1072,6 @@ useEffect(() => {
     ctx.stroke();
     ctx.restore();
 
-    // Ingezonken schaduw in frame mode
     if (isFramePlacement) {
       ctx.save();
       roundedRectPath(ctx, outerX, outerY, outerW, outerH, 0);
@@ -1100,7 +1094,7 @@ useEffect(() => {
     canvasSize,
     pixelRatio,
     displayWidth,
-    borderThickness,
+    previewBorderThickness,
     selectedMatColor,
     textures,
     logoImage,
@@ -1126,7 +1120,7 @@ useEffect(() => {
       canvasWidth: canvasSize.width,
       canvasHeight: canvasSize.height,
       displayWidth,
-      borderThickness,
+      borderThickness: previewBorderThickness,
       isFramePlacement,
     });
 
@@ -1177,7 +1171,7 @@ useEffect(() => {
       canvasWidth: canvasSize.width,
       canvasHeight: canvasSize.height,
       displayWidth,
-      borderThickness,
+      borderThickness: previewBorderThickness,
       isFramePlacement,
     });
 
@@ -1227,20 +1221,17 @@ useEffect(() => {
 
   return (
     <div ref={containerRef} className="space-y-4">
-    <div className="relative flex items-center justify-center">
-       <canvas
-  ref={canvasRef}
-  data-mat-canvas="true"
-  className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
-  onMouseDown={handleMouseDown}
-  onMouseMove={handleMouseMove}
-  onMouseUp={handleMouseUp}
-  onMouseLeave={handleMouseUp}
-/>
-
+      <div className="relative flex items-center justify-center">
+        <canvas
+          ref={canvasRef}
+          data-mat-canvas="true"
+          className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        />
       </div>
-
-     
 
       {config.logo.dataUrl && (
         <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
@@ -1249,6 +1240,7 @@ useEffect(() => {
               <Crosshair className="w-4 h-4 mr-1" />
               Center
             </Button>
+
             <Button size="sm" variant="destructive" onClick={handleDeleteLogo}>
               <Trash2 className="w-4 h-4 mr-1" />
               Remove
@@ -1266,6 +1258,7 @@ useEffect(() => {
                   {Math.round(config.logo.scale * 100)}%
                 </span>
               </div>
+
               <Slider
                 value={[config.logo.scale * 100]}
                 onValueChange={(values) => {
@@ -1288,6 +1281,7 @@ useEffect(() => {
                   {config.logo.rotation}°
                 </span>
               </div>
+
               <Slider
                 value={[config.logo.rotation]}
                 onValueChange={(values) => {
