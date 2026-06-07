@@ -631,30 +631,48 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     }
   }, []);
 
- useEffect(() => {
+useEffect(() => {
   const updateSize = () => {
     if (!containerRef.current) return;
 
     const containerWidth = containerRef.current.clientWidth;
     const maxHeight = 500;
 
-    // REFERENTIEMATEN voor een consistente preview-schaal
-    // Grootste standaardmaat in jouw set = 115 x 175
-    // Voor custom maten nemen we het maximum van referentie en actuele maat
-    const referenceLongestSide = Math.max(175, Math.max(displayWidth, displayHeight));
-    const referenceShortestSide = Math.max(115, Math.min(displayWidth, displayHeight));
-
-    // Bepaal één vaste cm -> px schaal voor alle matten
     const availableWidth = containerWidth - 32;
     const availableHeight = maxHeight;
 
-    const scaleX = availableWidth / referenceLongestSide;
-    const scaleY = availableHeight / referenceShortestSide;
-    const cmToPx = Math.min(scaleX, scaleY);
+    // Zachtere referentie:
+    // kleine matten blijven kleiner, maar niet té klein
+    const previewReferenceLongestSide = 120;
+    const previewReferenceShortestSide = 85;
 
-    // Werkelijke matafmetingen in px op basis van de gekozen maat
-    let matWidthPx = displayWidth * cmToPx;
-    let matHeightPx = displayHeight * cmToPx;
+    const longestSide = Math.max(displayWidth, displayHeight);
+
+    // Basis schaal
+    const scaleX = availableWidth / previewReferenceLongestSide;
+    const scaleY = availableHeight / previewReferenceShortestSide;
+    const baseCmToPx = Math.min(scaleX, scaleY);
+
+    // Kleine matten een lichte visuele boost geven
+    const sizeBoost =
+      longestSide <= 60
+        ? 1.18
+        : longestSide <= 85
+        ? 1.08
+        : 1;
+
+    let matWidthPx = displayWidth * baseCmToPx * sizeBoost;
+    let matHeightPx = displayHeight * baseCmToPx * sizeBoost;
+
+    // Nooit buiten preview laten vallen
+    const fitRatio = Math.min(
+      1,
+      availableWidth / matWidthPx,
+      availableHeight / matHeightPx
+    );
+
+    matWidthPx *= fitRatio;
+    matHeightPx *= fitRatio;
 
     const estimatedFrameThickness = isFramePlacement
       ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
@@ -664,8 +682,8 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     const totalHeight = matHeightPx + estimatedFrameThickness * 2;
 
     setCanvasSize({
-      width: Math.max(280, Math.round(totalWidth)),
-      height: Math.max(180, Math.round(totalHeight)),
+      width: Math.max(320, Math.round(totalWidth)),
+      height: Math.max(220, Math.round(totalHeight)),
     });
   };
 
