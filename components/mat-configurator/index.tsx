@@ -414,6 +414,23 @@ export function MatConfigurator() {
                           </button>
                         </div>
                       </div>
+                        {config.placement !== "frame" && (
+                        <>
+                          <Separator />
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm font-medium">Rubber Border</Label>
+                            </div>
+                            <Switch
+                              checked={config.rubberBorder}
+                              onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
+                            />
+                          </div>
+
+                          <Separator />
+                        </>
+                      )}
 
                       {/* Size as blocks */}
                       <div className="space-y-3">
@@ -518,23 +535,7 @@ export function MatConfigurator() {
                       </div>
 
                       {/* Rubber Border only when not frame */}
-                      {config.placement !== "frame" && (
-                        <>
-                          <Separator />
-
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label className="text-sm font-medium">Rubber Border</Label>
-                            </div>
-                            <Switch
-                              checked={config.rubberBorder}
-                              onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
-                            />
-                          </div>
-
-                          <Separator />
-                        </>
-                      )}
+                    
 
                       {/* Quantity */}
                       <div className="space-y-3">
