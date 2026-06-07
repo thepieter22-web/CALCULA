@@ -631,39 +631,48 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     }
   }, []);
 
-  useEffect(() => {
-    const updateSize = () => {
-      if (!containerRef.current) return;
+ useEffect(() => {
+  const updateSize = () => {
+    if (!containerRef.current) return;
 
-      const containerWidth = containerRef.current.clientWidth;
-      const maxHeight = 500;
-      const aspectRatio = displayWidth / displayHeight;
+    const containerWidth = containerRef.current.clientWidth;
+    const maxHeight = 500;
 
-      let matWidthPx = containerWidth - 32;
-      let matHeightPx = matWidthPx / aspectRatio;
+    // REFERENTIEMATEN voor een consistente preview-schaal
+    // Grootste standaardmaat in jouw set = 115 x 175
+    // Voor custom maten nemen we het maximum van referentie en actuele maat
+    const referenceLongestSide = Math.max(175, Math.max(displayWidth, displayHeight));
+    const referenceShortestSide = Math.max(115, Math.min(displayWidth, displayHeight));
 
-      if (matHeightPx > maxHeight) {
-        matHeightPx = maxHeight;
-        matWidthPx = matHeightPx * aspectRatio;
-      }
+    // Bepaal één vaste cm -> px schaal voor alle matten
+    const availableWidth = containerWidth - 32;
+    const availableHeight = maxHeight;
 
-      const estimatedFrameThickness = isFramePlacement
-        ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
-        : 0;
+    const scaleX = availableWidth / referenceLongestSide;
+    const scaleY = availableHeight / referenceShortestSide;
+    const cmToPx = Math.min(scaleX, scaleY);
 
-      const totalWidth = matWidthPx + estimatedFrameThickness * 2;
-      const totalHeight = matHeightPx + estimatedFrameThickness * 2;
+    // Werkelijke matafmetingen in px op basis van de gekozen maat
+    let matWidthPx = displayWidth * cmToPx;
+    let matHeightPx = displayHeight * cmToPx;
 
-      setCanvasSize({
-        width: Math.max(280, Math.round(totalWidth)),
-        height: Math.max(180, Math.round(totalHeight)),
-      });
-    };
+    const estimatedFrameThickness = isFramePlacement
+      ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
+      : 0;
 
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, [displayWidth, displayHeight, isFramePlacement]);
+    const totalWidth = matWidthPx + estimatedFrameThickness * 2;
+    const totalHeight = matHeightPx + estimatedFrameThickness * 2;
+
+    setCanvasSize({
+      width: Math.max(280, Math.round(totalWidth)),
+      height: Math.max(180, Math.round(totalHeight)),
+    });
+  };
+
+  updateSize();
+  window.addEventListener("resize", updateSize);
+  return () => window.removeEventListener("resize", updateSize);
+}, [displayWidth, displayHeight, isFramePlacement]);
 
   useEffect(() => {
     let mounted = true;
