@@ -23,7 +23,7 @@ const DEFAULT_CONFIG: MatConfig = {
   type: "indoor",
   placement: "floor",
   orientation: "landscape",
-  rubberBorder: false,
+  rubberBorder: true,
   size: {
     width: 85,
     height: 115,
@@ -51,16 +51,10 @@ export function MatConfigurator() {
   const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
 
-  // Subtypes
   const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
   const [outdoorSubtype, setOutdoorSubtype] = useState<OutdoorSubtype>("outdoor1")
-
-  // BELANGRIJK:
-  // Deze state bepaalt of er een extra subtype-blok zichtbaar is.
-  // Start op null = bij openen geen extra blok tonen.
   const [visibleTypeBlock, setVisibleTypeBlock] = useState<VisibleTypeBlock>(null)
 
-  // Load logo image when dataUrl changes
   useEffect(() => {
     if (config.logo.dataUrl) {
       const img = new window.Image()
@@ -119,31 +113,13 @@ export function MatConfigurator() {
     [config.logo, updateConfig]
   )
 
-  const handleSizeSelect = useCallback(
-    (sizeString: string) => {
-      if (sizeString === "custom") {
-        updateConfig({
-          size: { ...config.size, isCustom: true },
-        })
-      } else {
-        const size = STANDARD_SIZES.find((s) => `${s.width}x${s.height}` === sizeString)
-        if (size) {
-          updateConfig({
-            size: { width: size.width, height: size.height, isCustom: false },
-          })
-        }
-      }
-    },
-    [config.size, updateConfig]
-  )
-
   const handleReset = useCallback(() => {
     setConfig(DEFAULT_CONFIG)
     setSuggestedColorCodes([])
     setLogoImage(null)
     setIndoorSubtype("normal")
     setOutdoorSubtype("outdoor1")
-    setVisibleTypeBlock(null) // reset = opnieuw geen subtype-blok zichtbaar
+    setVisibleTypeBlock(null)
   }, [])
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
@@ -170,6 +146,7 @@ export function MatConfigurator() {
               <p className="text-sm text-muted-foreground">Design your custom entrance mat</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-2" />
@@ -244,7 +221,7 @@ export function MatConfigurator() {
                         </div>
                       </div>
 
-                      {/* Indoor Type - pas zichtbaar NA klik op Indoor */}
+                      {/* Indoor Type */}
                       {visibleTypeBlock === "indoor" && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Indoor Type</Label>
@@ -304,7 +281,7 @@ export function MatConfigurator() {
                         </div>
                       )}
 
-                      {/* Outdoor Type - pas zichtbaar NA klik op Outdoor */}
+                      {/* Outdoor Type */}
                       {visibleTypeBlock === "outdoor" && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Outdoor Type</Label>
@@ -370,7 +347,12 @@ export function MatConfigurator() {
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => updateConfig({ placement: "floor" })}
+                            onClick={() =>
+                              updateConfig({
+                                placement: "floor",
+                                rubberBorder: true,
+                              })
+                            }
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.placement === "floor"
                                 ? "border-foreground bg-foreground/5"
@@ -380,9 +362,15 @@ export function MatConfigurator() {
                             <div className="font-medium text-sm">Floor</div>
                             <div className="text-xs text-muted-foreground">Standard placement</div>
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => updateConfig({ placement: "frame" })}
+                            onClick={() =>
+                              updateConfig({
+                                placement: "frame",
+                                rubberBorder: false,
+                              })
+                            }
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
                               config.placement === "frame"
                                 ? "border-foreground bg-foreground/5"
@@ -411,6 +399,7 @@ export function MatConfigurator() {
                             <div className="w-12 h-8 mx-auto mb-2 bg-muted-foreground/20 rounded" />
                             <div className="text-xs">Landscape</div>
                           </button>
+
                           <button
                             type="button"
                             onClick={() => updateConfig({ orientation: "portrait" })}
@@ -426,25 +415,64 @@ export function MatConfigurator() {
                         </div>
                       </div>
 
-                      {/* Size */}
+                      {/* Size as blocks */}
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Size (cm)</Label>
-                        <Select
-                          value={config.size.isCustom ? "custom" : `${config.size.width}x${config.size.height}`}
-                          onValueChange={handleSizeSelect}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STANDARD_SIZES.map((size) => (
-                              <SelectItem key={size.label} value={`${size.width}x${size.height}`}>
-                                {size.label}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="custom">Custom Size</SelectItem>
-                          </SelectContent>
-                        </Select>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {STANDARD_SIZES.map((size) => {
+                            const isSelected =
+                              !config.size.isCustom &&
+                              config.size.width === size.width &&
+                              config.size.height === size.height
+
+                            return (
+                              <button
+                                key={size.label}
+                                type="button"
+                                onClick={() =>
+                                  updateConfig({
+                                    size: {
+                                      width: size.width,
+                                      height: size.height,
+                                      isCustom: false,
+                                    },
+                                  })
+                                }
+                                className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                  isSelected
+                                    ? "border-foreground bg-foreground/5"
+                                    : "border-border hover:border-muted-foreground"
+                                }`}
+                              >
+                                <div className="font-medium text-sm">{size.label}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {size.width} × {size.height} cm
+                                </div>
+                              </button>
+                            )
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateConfig({
+                                size: {
+                                  ...config.size,
+                                  isCustom: true,
+                                },
+                              })
+                            }
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              config.size.isCustom
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">Custom Size</div>
+                            <div className="text-xs text-muted-foreground">Enter your own dimensions</div>
+                          </button>
+                        </div>
 
                         {config.size.isCustom && (
                           <div className="grid grid-cols-2 gap-3 pt-2">
@@ -457,11 +485,16 @@ export function MatConfigurator() {
                                 value={config.size.width}
                                 onChange={(e) =>
                                   updateConfig({
-                                    size: { ...config.size, width: parseInt(e.target.value) || 30 },
+                                    size: {
+                                      ...config.size,
+                                      width: parseInt(e.target.value) || 30,
+                                      isCustom: true,
+                                    },
                                   })
                                 }
                               />
                             </div>
+
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">Height (cm)</Label>
                               <Input
@@ -471,7 +504,11 @@ export function MatConfigurator() {
                                 value={config.size.height}
                                 onChange={(e) =>
                                   updateConfig({
-                                    size: { ...config.size, height: parseInt(e.target.value) || 30 },
+                                    size: {
+                                      ...config.size,
+                                      height: parseInt(e.target.value) || 30,
+                                      isCustom: true,
+                                    },
                                   })
                                 }
                               />
@@ -480,20 +517,24 @@ export function MatConfigurator() {
                         )}
                       </div>
 
-                      <Separator />
+                      {/* Rubber Border only when not frame */}
+                      {config.placement !== "frame" && (
+                        <>
+                          <Separator />
 
-                      {/* Rubber Border */}
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm font-medium">Rubber Border</Label>
-                        </div>
-                        <Switch
-                          checked={config.rubberBorder}
-                          onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
-                        />
-                      </div>
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm font-medium">Rubber Border</Label>
+                            </div>
+                            <Switch
+                              checked={config.rubberBorder}
+                              onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
+                            />
+                          </div>
 
-                      <Separator />
+                          <Separator />
+                        </>
+                      )}
 
                       {/* Quantity */}
                       <div className="space-y-3">
@@ -507,6 +548,7 @@ export function MatConfigurator() {
                           >
                             <Minus className="w-4 h-4" />
                           </Button>
+
                           <Input
                             type="number"
                             min={1}
@@ -519,6 +561,7 @@ export function MatConfigurator() {
                             }
                             className="w-20 text-center"
                           />
+
                           <Button
                             variant="outline"
                             size="icon"
@@ -528,6 +571,7 @@ export function MatConfigurator() {
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
+
                         {config.quantity >= 5 && (
                           <Badge variant="secondary" className="text-xs">
                             Volume discount applied!
@@ -608,40 +652,11 @@ export function MatConfigurator() {
                   <RenderPreview config={config} logoImage={logoImage} />
                 </div>
               </CardHeader>
+
               <CardContent>
                 <MatCanvas config={config} onLogoUpdate={handleLogoUpdate} />
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Type</p>
-                <p className="font-medium text-sm capitalize">{config.type}</p>
-
-                {visibleTypeBlock === "indoor" && (
-                  <p className="text-xs text-muted-foreground capitalize mt-1">{indoorSubtype}</p>
-                )}
-
-                {visibleTypeBlock === "outdoor" && (
-                  <p className="text-xs text-muted-foreground capitalize mt-1">{outdoorSubtype}</p>
-                )}
-              </Card>
-
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Size</p>
-                <p className="font-medium text-sm">
-                  {config.size.width} × {config.size.height} cm
-                </p>
-              </Card>
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Color</p>
-                <p className="font-medium text-sm">{selectedColor?.name || "-"}</p>
-              </Card>
-              <Card className="p-3">
-                <p className="text-xs text-muted-foreground">Border</p>
-                <p className="font-medium text-sm">{config.rubberBorder ? "Rubber" : "Standard"}</p>
-              </Card>
-            </div>
           </div>
 
           {/* Price Calculator - Desktop */}
