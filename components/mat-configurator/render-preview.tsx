@@ -34,20 +34,15 @@ type SceneConfig = {
 
 const FRAME_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-
-  // aangepast voor jouw nieuwe foto
   leftPct: 0.36,
   topPct: 0.78,
   widthPct: 0.42,
-  heightPct: 0.20,
-
+  heightPct: 0.2,
   rotateDeg: -2,
   skewXDeg: -4,
   scaleYPct: 0.92,
-
   frameMarginPx: 10,
   frameColor: "#f3f3ef",
-
   shadowBlur: 0,
   shadowOffsetY: 0,
   shadowColor: "rgba(0,0,0,0)",
@@ -55,20 +50,15 @@ const FRAME_SCENE: SceneConfig = {
 
 const FLOOR_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-
-  // aangepast voor jouw nieuwe foto
   leftPct: 0.36,
   topPct: 0.78,
   widthPct: 0.42,
-  heightPct: 0.20,
-
+  heightPct: 0.2,
   rotateDeg: -2,
   skewXDeg: -4,
   scaleYPct: 0.92,
-
   frameMarginPx: 0,
   frameColor: "#ffffff",
-
   shadowBlur: 20,
   shadowOffsetY: 12,
   shadowColor: "rgba(0,0,0,0.25)",
@@ -136,7 +126,6 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
     const ctx = out.getContext("2d");
     if (!ctx) return null;
 
-    // achtergrondfoto
     ctx.drawImage(bgImg, 0, 0, out.width, out.height);
 
     const x = out.width * scene.leftPct;
@@ -147,7 +136,6 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
     const cx = x + w / 2;
     const cy = y + h / 2;
 
-    // frame-rand voor in-floor frame
     if (config.placement === "frame" && scene.frameMarginPx > 0) {
       ctx.save();
       ctx.translate(cx, cy);
@@ -161,11 +149,9 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
         w + scene.frameMarginPx * 2,
         h + scene.frameMarginPx * 2
       );
-
       ctx.restore();
     }
 
-    // schaduw enkel voor floor placement
     if (config.placement !== "frame") {
       ctx.save();
       ctx.translate(cx, cy);
@@ -175,14 +161,12 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
       ctx.shadowColor = scene.shadowColor;
       ctx.shadowBlur = scene.shadowBlur;
       ctx.shadowOffsetY = scene.shadowOffsetY;
-
       ctx.fillStyle = "rgba(0,0,0,0.08)";
       ctx.fillRect(-w / 2, -h / 2, w, h);
 
       ctx.restore();
     }
 
-    // mat zelf
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(degToRad(scene.rotateDeg));
@@ -277,4 +261,23 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
                     <strong>Placement:</strong> {config.placement}
                   </span>
                   <span>
-                    <strong>
+                    <strong>Size:</strong> {config.size.width} × {config.size.height} cm
+                  </span>
+                </div>
+
+                <Button onClick={handleDownloadRender} disabled={isRendering}>
+                  {isRendering ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  Download Render
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
