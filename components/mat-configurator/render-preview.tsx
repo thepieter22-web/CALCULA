@@ -34,15 +34,20 @@ type SceneConfig = {
 
 const FRAME_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-  leftPct: 0.416,
-  topPct: 0.585,
-  widthPct: 0.300,
-  heightPct: 0.155,
-  rotateDeg: -15,
-  skewXDeg: -18,
-  scaleYPct: 0.74,
+
+  // aangepast voor jouw nieuwe foto
+  leftPct: 0.36,
+  topPct: 0.78,
+  widthPct: 0.42,
+  heightPct: 0.20,
+
+  rotateDeg: -2,
+  skewXDeg: -4,
+  scaleYPct: 0.92,
+
   frameMarginPx: 10,
   frameColor: "#f3f3ef",
+
   shadowBlur: 0,
   shadowOffsetY: 0,
   shadowColor: "rgba(0,0,0,0)",
@@ -50,18 +55,23 @@ const FRAME_SCENE: SceneConfig = {
 
 const FLOOR_SCENE: SceneConfig = {
   src: "/mockups/entrance-frame.jpg",
-  leftPct: 0.416,
-  topPct: 0.585,
-  widthPct: 0.300,
-  heightPct: 0.155,
-  rotateDeg: -15,
-  skewXDeg: -18,
-  scaleYPct: 0.74,
+
+  // aangepast voor jouw nieuwe foto
+  leftPct: 0.36,
+  topPct: 0.78,
+  widthPct: 0.42,
+  heightPct: 0.20,
+
+  rotateDeg: -2,
+  skewXDeg: -4,
+  scaleYPct: 0.92,
+
   frameMarginPx: 0,
   frameColor: "#ffffff",
-  shadowBlur: 24,
-  shadowOffsetY: 18,
-  shadowColor: "rgba(0,0,0,0.22)",
+
+  shadowBlur: 20,
+  shadowOffsetY: 12,
+  shadowColor: "rgba(0,0,0,0.25)",
 };
 
 function degToRad(deg: number) {
@@ -267,23 +277,4 @@ export function RenderPreview({ config, logoImage: _logoImage }: RenderPreviewPr
                     <strong>Placement:</strong> {config.placement}
                   </span>
                   <span>
-                    <strong>Size:</strong> {config.size.width} × {config.size.height} cm
-                  </span>
-                </div>
-
-                <Button onClick={handleDownloadRender} disabled={isRendering}>
-                  {isRendering ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 mr-2" />
-                  )}
-                  Download Render
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+                    <strong>
