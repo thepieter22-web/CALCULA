@@ -643,8 +643,8 @@ useEffect(() => {
 
     // Zachtere referentie:
     // kleine matten blijven kleiner, maar niet té klein
-    const previewReferenceLongestSide = 120;
-    const previewReferenceShortestSide = 85;
+    const previewReferenceLongestSide = 100;
+    const previewReferenceShortestSide = 75;
 
     const longestSide = Math.max(displayWidth, displayHeight);
 
@@ -656,9 +656,9 @@ useEffect(() => {
     // Kleine matten een lichte visuele boost geven
     const sizeBoost =
       longestSide <= 60
-        ? 1.18
-        : longestSide <= 85
         ? 1.08
+        : longestSide <= 85
+        ? 1.04
         : 1;
 
     let matWidthPx = displayWidth * baseCmToPx * sizeBoost;
