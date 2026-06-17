@@ -122,9 +122,11 @@ export function MatConfigurator() {
     setVisibleTypeBlock(null)
   }, [])
 
-  const handleAddToCart = () => {
-  window.location.href = "https://www.carpetz.be/checkout";
+  
+const handleAddToCart = () => {
+  window.location.href = "https://www.carpetz.be/?add-to-cart=5950&redirect_to=https://www.carpetz.be/checkout/";
 };
+
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
     setSuggestedColorCodes(codes)
