@@ -124,7 +124,7 @@ export function MatConfigurator() {
 
   
 const handleAddToCart = () => {
-  window.top.location.href = "https://www.carpetz.be/?add-to-cart=5950&redirect_to=/checkout/";
+  window.top.location.href = "https://www.carpetz.be/checkout/?add-to-cart=5950";
 };
 ``
 
