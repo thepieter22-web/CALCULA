@@ -126,17 +126,17 @@ export function MatConfigurator() {
 const handleAddToCart = useCallback(() => {
   const params = new URLSearchParams({
     "add-to-cart": "5950",
-    quantity: String(config.quantity),
-    mat_type: config.type,
-    placement: config.placement,
-    orientation: config.orientation,
-    size_label: `${config.size.width} x ${config.size.height} cm`,
-    width_cm: String(config.size.width),
-    height_cm: String(config.size.height),
-    rubber_border: config.rubberBorder ? "Ja" : "Nee",
-    logo_colors: String(config.logoColors),
-    color_code: config.colorCode,
-    is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+    quantity: "1",
+    mat_type: "indoor",
+    placement: "floor",
+    orientation: "landscape",
+    size_label: "85 x 115 cm",
+    width_cm: "85",
+    height_cm: "115",
+    rubber_border: "Ja",
+    logo_colors: "2",
+    color_code: "C1",
+    is_custom_size: "Nee",
   })
 
   const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
@@ -146,7 +146,7 @@ const handleAddToCart = useCallback(() => {
   } else {
     window.location.href = url
   }
-}, [config])
+}, [])
 
 ``
 
