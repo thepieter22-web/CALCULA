@@ -123,158 +123,126 @@ export function MatConfigurator() {
   }, [])
 
   const parseEuroAmount = (value: string): number | null => {
-  if (!value) return null
+    if (!value) return null
 
-  // verwijder euroteken en spaties
-  let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
+    let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
 
-  // Case 1: zowel punt als komma aanwezig
-  // bv "1.234,56" => Europese notatie
-  // bv "1,234.56" => Engelse notatie
-  if (cleaned.includes(".") && cleaned.includes(",")) {
-    const lastDot = cleaned.lastIndexOf(".")
-    const lastComma = cleaned.lastIndexOf(",")
+    if (cleaned.includes(".") && cleaned.includes(",")) {
+      const lastDot = cleaned.lastIndexOf(".")
+      const lastComma = cleaned.lastIndexOf(",")
 
-    if (lastComma > lastDot) {
-      // Europese stijl: 1.234,56
-      cleaned = cleaned.replace(/\./g, "").replace(",", ".")
-    } else {
-      // Engelse stijl: 1,234.56
-      cleaned = cleaned.replace(/,/g, "")
+      if (lastComma > lastDot) {
+        // Europese stijl: 1.234,56
+        cleaned = cleaned.replace(/\./g, "").replace(",", ".")
+      } else {
+        // Engelse stijl: 1,234.56
+        cleaned = cleaned.replace(/,/g, "")
+      }
+    } else if (cleaned.includes(",")) {
+      // bv 41,68
+      cleaned = cleaned.replace(",", ".")
     }
+    // alleen punt? dan niets doen, bv 41.68
+
+    const parsed = Number(cleaned)
+    return Number.isFinite(parsed) ? parsed : null
   }
-  // Case 2: alleen komma aanwezig => 41,68
-  else if (cleaned.includes(",")) {
-    cleaned = cleaned.replace(",", ".")
-  }
-  // Case 3: alleen punt aanwezig => 41.68
-  // niets doen
 
-  const parsed = Number(cleaned)
-  return Number.isFinite(parsed) ? parsed : null
-}
+  const getDisplayedConfiguratorTotal = (): number | null => {
+    const bodyText = document.body.innerText || ""
 
-  // verwijder euroteken en spaties
-  let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
-
-  // Belgische/NL notatie:
-  // 1.234,56 -> 1234.56
-  cleaned = cleaned.replace(/\./g, "").replace(",", ".")
-
-  const parsed = Number(cleaned)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const getDisplayedConfiguratorTotal = (): number | null => {
-  // 1) Zoek elementen die "Total" tonen
-  const elements = Array.from(document.querySelectorAll<HTMLElement>("*"))
-
-  for (const el of elements) {
-    const text = (el.textContent || "").trim().toLowerCase()
-
-    if (text === "total" || text.startsWith("total")) {
-      const scope =
-        el.closest("section, article, .card, [class*='card'], div") ||
-        el.parentElement ||
-        document.body
-
-      const scopeText = scope.textContent || ""
-      const matches = [...scopeText.matchAll(/€\s*[\d.,]+/g)]
-
-      if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1][0]
-        const amount = parseEuroAmount(lastMatch)
-        if (amount !== null) return amount
+    // Zoek eerst expliciet naar een "Total" blok met een eurobedrag erna
+    const totalMatch = bodyText.match(/Total[\s\S]{0,80}?€\s*[\d.,]+/i)
+    if (totalMatch) {
+      const euroMatch = totalMatch[0].match(/€\s*[\d.,]+/)
+      if (euroMatch) {
+        return parseEuroAmount(euroMatch[0])
       }
     }
+
+    // Fallback: neem laatste eurobedrag op pagina
+    const allMatches = [...bodyText.matchAll(/€\s*[\d.,]+/g)]
+    if (allMatches.length > 0) {
+      const lastMatch = allMatches[allMatches.length - 1][0]
+      return parseEuroAmount(lastMatch)
+    }
+
+    return null
   }
 
-  // 2) Fallback: neem laatste eurobedrag op de pagina
-  const bodyText = document.body.innerText || ""
-  const fallbackMatches = [...bodyText.matchAll(/€\s*[\d.,]+/g)]
+  const handleAddToCart = useCallback(async () => {
+    try {
+      const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
 
-  if (fallbackMatches.length > 0) {
-    const lastMatch = fallbackMatches[fallbackMatches.length - 1][0]
-    return parseEuroAmount(lastMatch)
-  }
+      if (!canvas) {
+        alert("Mat preview canvas niet gevonden.")
+        return
+      }
 
-  return null
-}
-const handleAddToCart = useCallback(async () => {
-  try {
-    const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
+      // 1) Volledige mat preview als PNG
+      const previewDataUrl = canvas.toDataURL("image/png")
 
-    if (!canvas) {
-      alert("Mat preview canvas niet gevonden.")
-      return
+      // 2) Upload preview naar WordPress
+      const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: previewDataUrl,
+        }),
+      })
+
+      const uploadResult = await uploadResponse.json()
+
+      if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
+        console.error("Upload preview mislukt:", uploadResult)
+        alert("Preview upload mislukt.")
+        return
+      }
+
+      const previewUrl = uploadResult.url
+
+      // 3) Totale prijs uit de zichtbare calculator halen
+      const totalPrice = getDisplayedConfiguratorTotal()
+
+      if (totalPrice === null) {
+        alert("Prijs kon niet uit de configurator gehaald worden.")
+        return
+      }
+
+      console.log("Totaalprijs uit configurator:", totalPrice)
+
+      // 4) Alles doorsturen naar WooCommerce
+      const params = new URLSearchParams({
+        "add-to-cart": "5950",
+        quantity: String(config.quantity),
+        preview_url: previewUrl,
+        custom_price: String(totalPrice),
+        mat_type: config.type,
+        placement: config.placement,
+        orientation: config.orientation,
+        size_label: `${config.size.width} x ${config.size.height} cm`,
+        width_cm: String(config.size.width),
+        height_cm: String(config.size.height),
+        rubber_border: config.rubberBorder ? "Ja" : "Nee",
+        logo_colors: String(config.logoColors),
+        color_code: config.colorCode,
+        is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+      })
+
+      const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
+
+      if (window.top) {
+        window.top.location.href = url
+      } else {
+        window.location.href = url
+      }
+    } catch (error) {
+      console.error("handleAddToCart error:", error)
+      alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
     }
-
-    // 1) Volledige mat preview als PNG
-    const previewDataUrl = canvas.toDataURL("image/png")
-
-    // 2) Upload preview naar WordPress
-    const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        image: previewDataUrl,
-      }),
-    })
-
-    const uploadResult = await uploadResponse.json()
-
-    if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
-      console.error("Upload preview mislukt:", uploadResult)
-      alert("Preview upload mislukt.")
-      return
-    }
-
-    const previewUrl = uploadResult.url
-
-    // 3) Totale prijs uit zichtbare calculator halen
-    const totalPrice = getDisplayedConfiguratorTotal()
-
-    if (totalPrice === null) {
-      alert("Prijs kon niet uit de configurator gehaald worden.")
-      return
-    }
-
-    // 4) Alles doorsturen naar WooCommerce
-    const params = new URLSearchParams({
-      "add-to-cart": "5950",
-      quantity: String(config.quantity),
-      preview_url: previewUrl,
-      custom_price: String(totalPrice),
-      mat_type: config.type,
-      placement: config.placement,
-      orientation: config.orientation,
-      size_label: `${config.size.width} x ${config.size.height} cm`,
-      width_cm: String(config.size.width),
-      height_cm: String(config.size.height),
-      rubber_border: config.rubberBorder ? "Ja" : "Nee",
-      logo_colors: String(config.logoColors),
-      color_code: config.colorCode,
-      is_custom_size: config.size.isCustom ? "Ja" : "Nee",
-    })
-
-    const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
-
-    // Als configurator in iframe opent, stuur hele pagina door
-    if (window.top) {
-      window.top.location.href = url
-    } else {
-      window.location.href = url
-    }
-  } catch (error) {
-    console.error("handleAddToCart error:", error)
-    alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
-  }
-}, [config]);
-``
-
-
+  }, [config])
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
     setSuggestedColorCodes(codes)
