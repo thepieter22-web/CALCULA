@@ -122,6 +122,10 @@ export function MatConfigurator() {
     setVisibleTypeBlock(null)
   }, [])
 
+  const handleAddToCart = () => {
+  window.location.href = "https://www.carpetz.be/checkout";
+};
+
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
     setSuggestedColorCodes(codes)
   }, [])
@@ -151,11 +155,11 @@ export function MatConfigurator() {
             <Button variant="ghost" size="sm" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset
-            </Button>
-            <Button size="sm">
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Add to Cart
-            </Button>
+            </Button>      
+<Button size="sm" onClick={handleAddToCart}>
+  <ShoppingCart className="w-4 h-4 mr-2" />
+  Add to Cart
+</Button>
           </div>
         </div>
       </header>
