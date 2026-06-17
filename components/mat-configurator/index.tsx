@@ -290,7 +290,12 @@ const handleAddToCart = useCallback(async () => {
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset
             </Button>      
-<Button size="sm" onClick={handleAddToCart} disabled={isAddingToCart}>
+<Button
+  type="button"
+  size="sm"
+  onClick={handleAddToCart}
+  disabled={isAddingToCart}
+>
   <ShoppingCart className="w-4 h-4 mr-2" />
   {isAddingToCart ? "Adding..." : "Add to Cart"}
 </Button>
