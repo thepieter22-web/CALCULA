@@ -123,28 +123,29 @@ export function MatConfigurator() {
   }, [])
 
   
-const handleAdd**Cart = useCallback(() => {
-  cons**params = new URL**archParams({
-    "add-to-cart": "**50",
-    quantity: String(config.**antity),
-    mat_type: config.typ***    placement: config**lacement,
-    orientation: config**rientation,
-    size_label: `${co**ig.size.width} x ${config.size.he**ht} cm`,
-    width_cm: String**onfig.size.width),
-   **eight_cm: String(config.size.heig**),
-    rubber_border: config.rubb**Border ? "Ja" : "Nee",
-**  logo**olors:**tring(config.logoColors),
-    col**_code: config.colorCode,
-    is_c**tom_size: config.size.isCustom ? **a" : "Nee",
-**})
+const handleAddToCart = useCallback(() => {
+  const params = new URLSearchParams({
+    "add-to-cart": "5950",
+    quantity: String(config.quantity),
+    mat_type: config.type,
+    placement: config.placement,
+    orientation: config.orientation,
+    size_label: `${config.size.width} x ${config.size.height} cm`,
+    width_cm: String(config.size.width),
+    height_cm: String(config.size.height),
+    rubber_border: config.rubberBorder ? "Ja" : "Nee",
+    logo_colors: String(config.logoColors),
+    color_code: config.colorCode,
+    is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+  });
 
-**const**rl =**https**/**w.carpet**be/winkelwagen/?${**rams.toString()}`
+  const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`;
 
-**if (typeof window !==**undefined") {
-    window**ocation.href = url
-**}
-}, [config])
-**
+  if (typeof window !== "undefined") {
+    window.location.href = url;
+  }
+}, [config]);
+``
 
 
 
