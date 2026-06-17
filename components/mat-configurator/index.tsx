@@ -123,26 +123,67 @@ export function MatConfigurator() {
   }, [])
 
   
-const handleAddToCart = useCallback(() => {
-  const params = new URLSearchParams({
-    "add-to-cart": "5950",
-    quantity: String(config.quantity),
-    mat_type: config.type,
-    placement: config.placement,
-    orientation: config.orientation,
-    size_label: `${config.size.width} x ${config.size.height} cm`,
-    width_cm: String(config.size.width),
-    height_cm: String(config.size.height),
-    rubber_border: config.rubberBorder ? "Ja" : "Nee",
-    logo_colors: String(config.logoColors),
-    color_code: config.colorCode,
-    is_custom_size: config.size.isCustom ? "Ja" : "Nee",
-  });
+const handleAddToCart = useCallback(async () => {
+  try {
+    const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
 
-  const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`;
+    if (!canvas) {
+      alert("Mat preview canvas niet gevonden.")
+      return
+    }
 
-  if (typeof window !== "undefined") {
-    window.location.href = url;
+    // 1) Maak PNG van de volledige mat preview
+    const previewDataUrl = canvas.toDataURL("image/png")
+
+    // 2) Upload preview naar WordPress
+    const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image: previewDataUrl,
+      }),
+    })
+
+    const uploadResult = await uploadResponse.json()
+
+    if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
+      console.error("Upload preview mislukt:", uploadResult)
+      alert("Preview upload mislukt.")
+      return
+    }
+
+    const previewUrl = uploadResult.url
+
+    // 3) Stuur alles door naar WooCommerce winkelwagen
+    const params = new URLSearchParams({
+      "add-to-cart": "5950",
+      quantity: String(config.quantity),
+      preview_url: previewUrl,
+      mat_type: config.type,
+      placement: config.placement,
+      orientation: config.orientation,
+      size_label: `${config.size.width} x ${config.size.height} cm`,
+      width_cm: String(config.size.width),
+      height_cm: String(config.size.height),
+      rubber_border: config.rubberBorder ? "Ja" : "Nee",
+      logo_colors: String(config.logoColors),
+      color_code: config.colorCode,
+      is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+    })
+
+    const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
+
+    // Als de configurator in een iframe staat, stuur de volledige pagina door
+    if (window.top) {
+      window.top.location.href = url
+    } else {
+      window.location.href = url
+    }
+  } catch (error) {
+    console.error("handleAddToCart error:", error)
+    alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
   }
 }, [config]);
 ``
