@@ -1172,14 +1172,15 @@ export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
     <div ref={containerRef} className="space-y-4">
       <div className="relative flex items-center justify-center">
         <canvas
-          ref={canvasRef}
-          data-mat-canvas="true"
-          className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
+  id="carpetz-mat-preview-canvas"
+  ref={canvasRef}
+  data-mat-canvas="true"
+  className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
+  onMouseDown={handleMouseDown}
+  onMouseMove={handleMouseMove}
+  onMouseUp={handleMouseUp}
+  onMouseLeave={handleMouseUp}
+/>
       </div>
 
       {config.logo.dataUrl && (
