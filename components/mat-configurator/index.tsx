@@ -122,7 +122,55 @@ export function MatConfigurator() {
     setVisibleTypeBlock(null)
   }, [])
 
-  
+  const parseEuroAmount = (value: string): number | null => {
+  if (!value) return null
+
+  // verwijder euroteken en spaties
+  let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
+
+  // Belgische/NL notatie:
+  // 1.234,56 -> 1234.56
+  cleaned = cleaned.replace(/\./g, "").replace(",", ".")
+
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const getDisplayedConfiguratorTotal = (): number | null => {
+  // 1) Zoek elementen die "Total" tonen
+  const elements = Array.from(document.querySelectorAll<HTMLElement>("*"))
+
+  for (const el of elements) {
+    const text = (el.textContent || "").trim().toLowerCase()
+
+    if (text === "total" || text.startsWith("total")) {
+      const scope =
+        el.closest("section, article, .card, [class*='card'], div") ||
+        el.parentElement ||
+        document.body
+
+      const scopeText = scope.textContent || ""
+      const matches = [...scopeText.matchAll(/€\s*[\d.,]+/g)]
+
+      if (matches.length > 0) {
+        const lastMatch = matches[matches.length - 1][0]
+        const amount = parseEuroAmount(lastMatch)
+        if (amount !== null) return amount
+      }
+    }
+  }
+
+  // 2) Fallback: neem laatste eurobedrag op de pagina
+  const bodyText = document.body.innerText || ""
+  const fallbackMatches = [...bodyText.matchAll(/€\s*[\d.,]+/g)]
+
+  if (fallbackMatches.length > 0) {
+    const lastMatch = fallbackMatches[fallbackMatches.length - 1][0]
+    return parseEuroAmount(lastMatch)
+  }
+
+  return null
+}
 const handleAddToCart = useCallback(async () => {
   try {
     const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
@@ -132,7 +180,7 @@ const handleAddToCart = useCallback(async () => {
       return
     }
 
-    // 1) Maak PNG van de volledige mat preview
+    // 1) Volledige mat preview als PNG
     const previewDataUrl = canvas.toDataURL("image/png")
 
     // 2) Upload preview naar WordPress
@@ -156,11 +204,20 @@ const handleAddToCart = useCallback(async () => {
 
     const previewUrl = uploadResult.url
 
-    // 3) Stuur alles door naar WooCommerce winkelwagen
+    // 3) Totale prijs uit zichtbare calculator halen
+    const totalPrice = getDisplayedConfiguratorTotal()
+
+    if (totalPrice === null) {
+      alert("Prijs kon niet uit de configurator gehaald worden.")
+      return
+    }
+
+    // 4) Alles doorsturen naar WooCommerce
     const params = new URLSearchParams({
       "add-to-cart": "5950",
       quantity: String(config.quantity),
       preview_url: previewUrl,
+      custom_price: String(totalPrice),
       mat_type: config.type,
       placement: config.placement,
       orientation: config.orientation,
@@ -175,7 +232,7 @@ const handleAddToCart = useCallback(async () => {
 
     const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
 
-    // Als de configurator in een iframe staat, stuur de volledige pagina door
+    // Als configurator in iframe opent, stuur hele pagina door
     if (window.top) {
       window.top.location.href = url
     } else {
