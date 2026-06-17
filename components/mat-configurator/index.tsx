@@ -124,8 +124,9 @@ export function MatConfigurator() {
 
   
 const handleAddToCart = () => {
-  window.location.href = "https://www.carpetz.be/?add-to-cart=5950&redirect_to=https://www.carpetz.be/checkout/";
+  window.top.location.href = "https://www.carpetz.be/?add-to-cart=5950&redirect_to=/checkout/";
 };
+``
 
 
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
