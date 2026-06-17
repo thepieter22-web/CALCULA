@@ -128,6 +128,35 @@ export function MatConfigurator() {
   // verwijder euroteken en spaties
   let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
 
+  // Case 1: zowel punt als komma aanwezig
+  // bv "1.234,56" => Europese notatie
+  // bv "1,234.56" => Engelse notatie
+  if (cleaned.includes(".") && cleaned.includes(",")) {
+    const lastDot = cleaned.lastIndexOf(".")
+    const lastComma = cleaned.lastIndexOf(",")
+
+    if (lastComma > lastDot) {
+      // Europese stijl: 1.234,56
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".")
+    } else {
+      // Engelse stijl: 1,234.56
+      cleaned = cleaned.replace(/,/g, "")
+    }
+  }
+  // Case 2: alleen komma aanwezig => 41,68
+  else if (cleaned.includes(",")) {
+    cleaned = cleaned.replace(",", ".")
+  }
+  // Case 3: alleen punt aanwezig => 41.68
+  // niets doen
+
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+  // verwijder euroteken en spaties
+  let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
+
   // Belgische/NL notatie:
   // 1.234,56 -> 1234.56
   cleaned = cleaned.replace(/\./g, "").replace(",", ".")
