@@ -195,10 +195,8 @@ const handleAddToCart = useCallback(async () => {
       return
     }
 
-    // Sneller dan PNG: JPEG met compressie
     const previewDataUrl = canvas.toDataURL("image/jpeg", 0.82)
 
-    // Upload preview naar WordPress
     const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
       method: "POST",
       headers: {
@@ -225,8 +223,6 @@ const handleAddToCart = useCallback(async () => {
       alert("Prijs kon niet uit de configurator gehaald worden.")
       return
     }
-
-    console.log("Prijs uit configurator:", unitPrice)
 
     const params = new URLSearchParams({
       "add-to-cart": "5950",
@@ -259,6 +255,7 @@ const handleAddToCart = useCallback(async () => {
     setIsAddingToCart(false)
   }
 }, [config, isAddingToCart])
+
 ``
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
     setSuggestedColorCodes(codes)
