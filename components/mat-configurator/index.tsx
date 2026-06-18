@@ -50,7 +50,6 @@ export function MatConfigurator() {
   const [activeTab, setActiveTab] = useState("mat")
   const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
-  const [isAddingToCart, setIsAddingToCart] = useState(false)
 
   const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
   const [outdoorSubtype, setOutdoorSubtype] = useState<OutdoorSubtype>("outdoor1")
@@ -123,140 +122,128 @@ export function MatConfigurator() {
     setVisibleTypeBlock(null)
   }, [])
 
-const parseEuroAmount = (value: string): number | null => {
-  if (!value) return null
+  const parseEuroAmount = (value: string): number | null => {
+    if (!value) return null
 
-  let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
+    let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
 
-  // 1.234,56  -> 1234.56
-  // 1,234.56  -> 1234.56
-  if (cleaned.includes(".") && cleaned.includes(",")) {
-    const lastDot = cleaned.lastIndexOf(".")
-    const lastComma = cleaned.lastIndexOf(",")
+    if (cleaned.includes(".") && cleaned.includes(",")) {
+      const lastDot = cleaned.lastIndexOf(".")
+      const lastComma = cleaned.lastIndexOf(",")
 
-    if (lastComma > lastDot) {
-      cleaned = cleaned.replace(/\./g, "").replace(",", ".")
-    } else {
-      cleaned = cleaned.replace(/,/g, "")
+      if (lastComma > lastDot) {
+        // Europese stijl: 1.234,56
+        cleaned = cleaned.replace(/\./g, "").replace(",", ".")
+      } else {
+        // Engelse stijl: 1,234.56
+        cleaned = cleaned.replace(/,/g, "")
+      }
+    } else if (cleaned.includes(",")) {
+      // bv 41,68
+      cleaned = cleaned.replace(",", ".")
     }
-  } else if (cleaned.includes(",")) {
-    cleaned = cleaned.replace(",", ".")
+    // alleen punt? dan niets doen, bv 41.68
+
+    const parsed = Number(cleaned)
+    return Number.isFinite(parsed) ? parsed : null
   }
 
-  const parsed = Number(cleaned)
-  return Number.isFinite(parsed) ? parsed : null
-}
+  const getDisplayedConfiguratorTotal = (): number | null => {
+    const bodyText = document.body.innerText || ""
 
-const getDisplayedConfiguratorPrice = (): number | null => {
-  const bodyText = document.body.innerText || ""
-
-  // Eerst Subtotal zoeken (meestal excl. btw, stabieler voor WooCommerce)
-  const subtotalMatch = bodyText.match(/Subtotal[\s\S]{0,80}?€\s*[\d.,]+/i)
-  if (subtotalMatch) {
-    const euroMatch = subtotalMatch[0].match(/€\s*[\d.,]+/)
-    if (euroMatch) {
-      const amount = parseEuroAmount(euroMatch[0])
-      if (amount !== null) return amount
+    // Zoek eerst expliciet naar een "Total" blok met een eurobedrag erna
+    const totalMatch = bodyText.match(/Total[\s\S]{0,80}?€\s*[\d.,]+/i)
+    if (totalMatch) {
+      const euroMatch = totalMatch[0].match(/€\s*[\d.,]+/)
+      if (euroMatch) {
+        return parseEuroAmount(euroMatch[0])
+      }
     }
+
+    // Fallback: neem laatste eurobedrag op pagina
+    const allMatches = [...bodyText.matchAll(/€\s*[\d.,]+/g)]
+    if (allMatches.length > 0) {
+      const lastMatch = allMatches[allMatches.length - 1][0]
+      return parseEuroAmount(lastMatch)
+    }
+
+    return null
   }
 
-  // Fallback: Unit price
-  const unitPriceMatch = bodyText.match(/Unit price[\s\S]{0,80}?€\s*[\d.,]+/i)
-  if (unitPriceMatch) {
-    const euroMatch = unitPriceMatch[0].match(/€\s*[\d.,]+/)
-    if (euroMatch) {
-      const amount = parseEuroAmount(euroMatch[0])
-      if (amount !== null) return amount
+  const handleAddToCart = useCallback(async () => {
+    try {
+      const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
+
+      if (!canvas) {
+        alert("Mat preview canvas niet gevonden.")
+        return
+      }
+
+      // 1) Volledige mat preview als PNG
+      const previewDataUrl = canvas.toDataURL("image/png")
+
+      // 2) Upload preview naar WordPress
+      const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: previewDataUrl,
+        }),
+      })
+
+      const uploadResult = await uploadResponse.json()
+
+      if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
+        console.error("Upload preview mislukt:", uploadResult)
+        alert("Preview upload mislukt.")
+        return
+      }
+
+      const previewUrl = uploadResult.url
+
+      // 3) Totale prijs uit de zichtbare calculator halen
+      const totalPrice = getDisplayedConfiguratorTotal()
+
+      if (totalPrice === null) {
+        alert("Prijs kon niet uit de configurator gehaald worden.")
+        return
+      }
+
+      console.log("Totaalprijs uit configurator:", totalPrice)
+
+      // 4) Alles doorsturen naar WooCommerce
+      const params = new URLSearchParams({
+        "add-to-cart": "5950",
+        quantity: String(config.quantity),
+        preview_url: previewUrl,
+        custom_price: String(totalPrice),
+        mat_type: config.type,
+        placement: config.placement,
+        orientation: config.orientation,
+        size_label: `${config.size.width} x ${config.size.height} cm`,
+        width_cm: String(config.size.width),
+        height_cm: String(config.size.height),
+        rubber_border: config.rubberBorder ? "Ja" : "Nee",
+        logo_colors: String(config.logoColors),
+        color_code: config.colorCode,
+        is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+      })
+
+      const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
+
+      if (window.top) {
+        window.top.location.href = url
+      } else {
+        window.location.href = url
+      }
+    } catch (error) {
+      console.error("handleAddToCart error:", error)
+      alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
     }
-  }
+  }, [config])
 
-  // Laatste fallback: Total
-  const totalMatch = bodyText.match(/Total[\s\S]{0,80}?€\s*[\d.,]+/i)
-  if (totalMatch) {
-    const euroMatch = totalMatch[0].match(/€\s*[\d.,]+/)
-    if (euroMatch) {
-      return parseEuroAmount(euroMatch[0])
-    }
-  }
-
-  return null
-}
-
-const handleAddToCart = useCallback(async () => {
-  if (isAddingToCart) return
-
-  try {
-    setIsAddingToCart(true)
-
-    const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
-
-    if (!canvas) {
-      alert("Mat preview canvas niet gevonden.")
-      return
-    }
-
-    const previewDataUrl = canvas.toDataURL("image/jpeg", 0.82)
-
-    const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        image: previewDataUrl,
-      }),
-    })
-
-    const uploadResult = await uploadResponse.json()
-
-    if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
-      console.error("Upload preview mislukt:", uploadResult)
-      alert("Preview upload mislukt.")
-      return
-    }
-
-    const previewUrl = uploadResult.url
-
-    const unitPrice = getDisplayedConfiguratorPrice()
-
-    if (unitPrice === null) {
-      alert("Prijs kon niet uit de configurator gehaald worden.")
-      return
-    }
-
-    const params = new URLSearchParams({
-      "add-to-cart": "5950",
-      quantity: String(config.quantity),
-      preview_url: previewUrl,
-      custom_price: String(unitPrice),
-      mat_type: config.type,
-      placement: config.placement,
-      orientation: config.orientation,
-      size_label: `${config.size.width} x ${config.size.height} cm`,
-      width_cm: String(config.size.width),
-      height_cm: String(config.size.height),
-      rubber_border: config.rubberBorder ? "Ja" : "Nee",
-      logo_colors: String(config.logoColors),
-      color_code: config.colorCode,
-      is_custom_size: config.size.isCustom ? "Ja" : "Nee",
-    })
-
-    const url = `https://www.carpetz.be/winkelwagen/?${params.toString()}`
-
-    if (window.top) {
-      window.top.location.href = url
-    } else {
-      window.location.href = url
-    }
-  } catch (error) {
-    console.error("handleAddToCart error:", error)
-    alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
-  } finally {
-    setIsAddingToCart(false)
-  }
-}, [config, isAddingToCart])
-
-``
   const handleColorSuggestionsFound = useCallback((codes: string[]) => {
     setSuggestedColorCodes(codes)
   }, [])
@@ -287,14 +274,9 @@ const handleAddToCart = useCallback(async () => {
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset
             </Button>      
-<Button
-  type="button"
-  size="sm"
-  onClick={handleAddToCart}
-  disabled={isAddingToCart}
->
+<Button size="sm" onClick={handleAddToCart}>
   <ShoppingCart className="w-4 h-4 mr-2" />
-  {isAddingToCart ? "Adding..." : "Add to Cart"}
+  Add to Cart
 </Button>
           </div>
         </div>
