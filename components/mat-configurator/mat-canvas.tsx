@@ -1,1256 +1,842 @@
-"use client";
+"use client"
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { MAT_COLORS, type MatConfig } from "@/lib/mat-config";
-import { Button } from "@/components/ui/button";
-import { RotateCw, ZoomIn, Move, Trash2, Crosshair } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
+import { useState, useCallback, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { ColorPalette } from "./color-palette"
+import { MatCanvas } from "./mat-canvas"
+import { LogoUploader } from "./logo-uploader"
+import { PriceCalculator } from "./price-calculator"
+import { RenderPreview } from "./render-preview"
+import { STANDARD_SIZES, type MatConfig, MAT_COLORS } from "@/lib/mat-config"
+import { Layers, Palette, Image as ImageIcon, ShoppingCart, RotateCcw, Plus, Minus } from "lucide-react"
 
-interface MatCanvasProps {
-  config: MatConfig;
-  onLogoUpdate: (updates: Partial<MatConfig["logo"]>) => void;
+const DEFAULT_CONFIG: MatConfig = {
+  type: "indoor",
+  placement: "floor",
+  orientation: "landscape",
+  rubberBorder: true,
+  size: {
+    width: 85,
+    height: 115,
+    isCustom: false,
+  },
+  colorCode: "C1",
+  logo: {
+    file: null,
+    dataUrl: null,
+    position: { x: 0.5, y: 0.5 },
+    scale: 1,
+    rotation: 0,
+  },
+  quantity: 1,
+  logoColors: 1,
 }
 
-type TextureSet = {
-  base: HTMLImageElement | null;
-  soft: HTMLImageElement | null;
-  noise: HTMLImageElement | null;
-};
-
-type CanvasLayout = {
-  frameThickness: number;
-  borderPx: number;
-  canvasOuterRadius: number;
-  matOuterRadius: number;
-  innerRadius: number;
-  outerX: number;
-  outerY: number;
-  outerW: number;
-  outerH: number;
-  innerX: number;
-  innerY: number;
-  innerW: number;
-  innerH: number;
-};
-
-const TEXTURES = {
-  base: "/textures/mat-base.png",
-  soft: "/textures/mat-soft.png",
-  noise: "/textures/noise.png",
-};
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function hexToRgb(hex: string) {
-  const clean = hex.replace("#", "");
-  const normalized =
-    clean.length === 3
-      ? clean
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : clean;
-
-  const bigint = parseInt(normalized, 16);
-
-  return {
-    r: (bigint >> 16) & 255,
-    g: (bigint >> 8) & 255,
-    b: bigint & 255,
-  };
-}
-
-function rgbToHex(r: number, g: number, b: number) {
-  return `#${[r, g, b]
-    .map((v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-function mixHex(colorA: string, colorB: string, amount: number) {
-  const a = hexToRgb(colorA);
-  const b = hexToRgb(colorB);
-
-  return rgbToHex(
-    a.r + (b.r - a.r) * amount,
-    a.g + (b.g - a.g) * amount,
-    a.b + (b.b - a.b) * amount
-  );
-}
-
-function darkenHex(color: string, amount = 0.12) {
-  return mixHex(color, "#000000", amount);
-}
-
-function lightenHex(color: string, amount = 0.12) {
-  return mixHex(color, "#ffffff", amount);
-}
-
-function muteHex(color: string) {
-  return mixHex(mixHex(color, "#707070", 0.06), "#000000", 0.03);
-}
-
-function straightRectPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number
-) {
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + width, y);
-  ctx.lineTo(x + width, y + height);
-  ctx.lineTo(x, y + height);
-  ctx.closePath();
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-function createScaledPattern(
-  ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  scale = 1
-) {
-  const offscreen = document.createElement("canvas");
-  offscreen.width = Math.max(8, Math.round(image.width * scale));
-  offscreen.height = Math.max(8, Math.round(image.height * scale));
-
-  const offCtx = offscreen.getContext("2d");
-  if (!offCtx) return null;
-
-  offCtx.imageSmoothingEnabled = true;
-  offCtx.imageSmoothingQuality = "high";
-  offCtx.drawImage(image, 0, 0, offscreen.width, offscreen.height);
-
-  return ctx.createPattern(offscreen, "repeat");
-}
-
-function getRenderedLogoSize(
-  image: HTMLImageElement | HTMLCanvasElement,
-  scale: number,
-  innerWidth: number,
-  innerHeight: number
-) {
-  const aspect = image.width / image.height;
-  const baseSize = Math.min(innerWidth, innerHeight) * 0.42 * scale;
-
-  let width: number;
-  let height: number;
-
-  if (aspect >= 1) {
-    width = baseSize;
-    height = baseSize / aspect;
-  } else {
-    height = baseSize;
-    width = baseSize * aspect;
-  }
-
-  const maxWidth = innerWidth * 0.88;
-  const maxHeight = innerHeight * 0.88;
-
-  if (width > maxWidth) {
-    const ratio = maxWidth / width;
-    width *= ratio;
-    height *= ratio;
-  }
-
-  if (height > maxHeight) {
-    const ratio = maxHeight / height;
-    width *= ratio;
-    height *= ratio;
-  }
-
-  return { width, height };
-}
-
-function isNearWhite(r: number, g: number, b: number, threshold = 245) {
-  return r >= threshold && g >= threshold && b >= threshold;
-}
-
-function findOpaqueBounds(
-  imageData: ImageData,
-  alphaThreshold = 8
-): { left: number; top: number; right: number; bottom: number } | null {
-  const { data, width, height } = imageData;
-
-  let left = width;
-  let top = height;
-  let right = -1;
-  let bottom = -1;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const a = data[i + 3];
-      if (a > alphaThreshold) {
-        if (x < left) left = x;
-        if (y < top) top = y;
-        if (x > right) right = x;
-        if (y > bottom) bottom = y;
-      }
-    }
-  }
-
-  if (right === -1 || bottom === -1) return null;
-  return { left, top, right, bottom };
-}
-
-function hasLikelyWhiteBackground(image: HTMLImageElement) {
-  const sampleCanvas = document.createElement("canvas");
-  sampleCanvas.width = Math.min(32, image.width);
-  sampleCanvas.height = Math.min(32, image.height);
-
-  const ctx = sampleCanvas.getContext("2d");
-  if (!ctx) return false;
-
-  ctx.drawImage(image, 0, 0, sampleCanvas.width, sampleCanvas.height);
-  const { data, width, height } = ctx.getImageData(
-    0,
-    0,
-    sampleCanvas.width,
-    sampleCanvas.height
-  );
-
-  const points: [number, number][] = [
-    [0, 0],
-    [width - 1, 0],
-    [0, height - 1],
-    [width - 1, height - 1],
-    [Math.floor(width / 2), 0],
-    [0, Math.floor(height / 2)],
-    [width - 1, Math.floor(height / 2)],
-    [Math.floor(width / 2), height - 1],
-  ];
-
-  let whiteHits = 0;
-
-  for (const [x, y] of points) {
-    const i = (y * width + x) * 4;
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const a = data[i + 3];
-
-    if (a > 200 && isNearWhite(r, g, b, 245)) {
-      whiteHits++;
-    }
-  }
-
-  return whiteHits >= 5;
-}
-
-function applyCanvasNoise(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  amount = 6
-) {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    if (alpha < 8) continue;
-
-    const noise = (Math.random() - 0.5) * amount;
-    data[i] = clamp(data[i] + noise, 0, 255);
-    data[i + 1] = clamp(data[i + 1] + noise, 0, 255);
-    data[i + 2] = clamp(data[i + 2] + noise, 0, 255);
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function softenPureWhites(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number
-) {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3];
-    if (a < 8) continue;
-
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    if (r > 235 && g > 235 && b > 235) {
-      data[i] = 228;
-      data[i + 1] = 228;
-      data[i + 2] = 228;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function createPreparedLogoCanvas(image: HTMLImageElement) {
-  const offscreen = document.createElement("canvas");
-  offscreen.width = image.width;
-  offscreen.height = image.height;
-
-  const ctx = offscreen.getContext("2d");
-  if (!ctx) return null;
-
-  ctx.clearRect(0, 0, offscreen.width, offscreen.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(image, 0, 0);
-
-  const removeWhiteBg = hasLikelyWhiteBackground(image);
-
-  const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
-  const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const a = data[i + 3];
-
-    if (a < 8) {
-      data[i + 3] = 0;
-      continue;
-    }
-
-    if (removeWhiteBg && isNearWhite(r, g, b, 245)) {
-      data[i + 3] = 0;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-  softenPureWhites(ctx, offscreen.width, offscreen.height);
-
-  const bounds = findOpaqueBounds(
-    ctx.getImageData(0, 0, offscreen.width, offscreen.height),
-    8
-  );
-  if (!bounds) return offscreen;
-
-  const pad = 2;
-  const sx = Math.max(0, bounds.left - pad);
-  const sy = Math.max(0, bounds.top - pad);
-  const sw = Math.min(
-    offscreen.width - sx,
-    bounds.right - bounds.left + 1 + pad * 2
-  );
-  const sh = Math.min(
-    offscreen.height - sy,
-    bounds.bottom - bounds.top + 1 + pad * 2
-  );
-
-  const cropped = document.createElement("canvas");
-  cropped.width = sw;
-  cropped.height = sh;
-
-  const croppedCtx = cropped.getContext("2d");
-  if (!croppedCtx) return offscreen;
-
-  croppedCtx.clearRect(0, 0, sw, sh);
-  croppedCtx.imageSmoothingEnabled = true;
-  croppedCtx.imageSmoothingQuality = "high";
-  croppedCtx.drawImage(offscreen, sx, sy, sw, sh, 0, 0, sw, sh);
-
-  return cropped;
-}
-
-function createPrintedLogoCanvas(
-  source: HTMLCanvasElement,
-  textureBase: HTMLImageElement | null,
-  textureSoft: HTMLImageElement | null,
-  textureNoise: HTMLImageElement | null
-) {
-  const printed = document.createElement("canvas");
-  printed.width = source.width;
-  printed.height = source.height;
-
-  const ctx = printed.getContext("2d");
-  if (!ctx) return source;
-
-  ctx.clearRect(0, 0, printed.width, printed.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-
-  ctx.globalAlpha = 0.96;
-  ctx.drawImage(source, 0, 0);
-
-  const mask = document.createElement("canvas");
-  mask.width = source.width;
-  mask.height = source.height;
-  const maskCtx = mask.getContext("2d");
-  if (!maskCtx) return source;
-
-  maskCtx.clearRect(0, 0, mask.width, mask.height);
-  maskCtx.drawImage(source, 0, 0);
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  ctx.fillRect(0, 0, printed.width, printed.height);
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.fillStyle = "rgba(0,0,0,0.05)";
-  ctx.fillRect(0, 0, printed.width, printed.height);
-  ctx.restore();
-
-  if (textureBase) {
-    const overlay = document.createElement("canvas");
-    overlay.width = source.width;
-    overlay.height = source.height;
-    const overlayCtx = overlay.getContext("2d");
-
-    if (overlayCtx) {
-      const pattern = createScaledPattern(overlayCtx, textureBase, 0.24);
-      if (pattern) {
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-        overlayCtx.fillStyle = pattern;
-        overlayCtx.fillRect(0, 0, overlay.width, overlay.height);
-
-        overlayCtx.globalCompositeOperation = "destination-in";
-        overlayCtx.drawImage(mask, 0, 0);
-
-        ctx.save();
-        ctx.globalAlpha = 0.14;
-        ctx.globalCompositeOperation = "multiply";
-        ctx.drawImage(overlay, 0, 0);
-        ctx.restore();
-      }
-    }
-  }
-
-  if (textureSoft) {
-    const overlay = document.createElement("canvas");
-    overlay.width = source.width;
-    overlay.height = source.height;
-    const overlayCtx = overlay.getContext("2d");
-
-    if (overlayCtx) {
-      const pattern = createScaledPattern(overlayCtx, textureSoft, 0.28);
-      if (pattern) {
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-        overlayCtx.fillStyle = pattern;
-        overlayCtx.fillRect(0, 0, overlay.width, overlay.height);
-
-        overlayCtx.globalCompositeOperation = "destination-in";
-        overlayCtx.drawImage(mask, 0, 0);
-
-        ctx.save();
-        ctx.globalAlpha = 0.08;
-        ctx.globalCompositeOperation = "multiply";
-        ctx.drawImage(overlay, 0, 0);
-        ctx.restore();
-      }
-    }
-  }
-
-  if (textureNoise) {
-    const overlay = document.createElement("canvas");
-    overlay.width = source.width;
-    overlay.height = source.height;
-    const overlayCtx = overlay.getContext("2d");
-
-    if (overlayCtx) {
-      const pattern = createScaledPattern(overlayCtx, textureNoise, 0.16);
-      if (pattern) {
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-        overlayCtx.fillStyle = pattern;
-        overlayCtx.fillRect(0, 0, overlay.width, overlay.height);
-
-        overlayCtx.globalCompositeOperation = "destination-in";
-        overlayCtx.drawImage(mask, 0, 0);
-
-        ctx.save();
-        ctx.globalAlpha = 0.05;
-        ctx.globalCompositeOperation = "multiply";
-        ctx.drawImage(overlay, 0, 0);
-        ctx.restore();
-      }
-    }
-  }
-
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  const fade = ctx.createLinearGradient(0, 0, 0, printed.height);
-  fade.addColorStop(0, "rgba(255,255,255,0.03)");
-  fade.addColorStop(0.45, "rgba(255,255,255,0)");
-  fade.addColorStop(1, "rgba(0,0,0,0.08)");
-  ctx.fillStyle = fade;
-  ctx.fillRect(0, 0, printed.width, printed.height);
-  ctx.restore();
-
-  applyCanvasNoise(ctx, printed.width, printed.height, 4);
-
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = "source-over";
-
-  return printed;
-}
-
-function getFrameThickness(
-  canvasWidth: number,
-  canvasHeight: number,
-  isFramePlacement: boolean
-) {
-  return isFramePlacement
-    ? clamp(Math.min(canvasWidth, canvasHeight) * 0.035, 12, 24)
-    : 0;
-}
-
-function getCanvasLayout(params: {
-  canvasWidth: number;
-  canvasHeight: number;
-  displayWidth: number;
-  borderThickness: number;
-  isFramePlacement: boolean;
-}): CanvasLayout {
-  const {
-    canvasWidth,
-    canvasHeight,
-    displayWidth,
-    borderThickness,
-    isFramePlacement,
-  } = params;
-
-  const frameThickness = getFrameThickness(
-    canvasWidth,
-    canvasHeight,
-    isFramePlacement
-  );
-
-  const matAreaWidth = canvasWidth - frameThickness * 2;
-  const scale = matAreaWidth / displayWidth;
-  const rawBorderPx = borderThickness * scale;
-
-  const outerX = frameThickness;
-  const outerY = frameThickness;
-  const outerW = canvasWidth - frameThickness * 2;
-  const outerH = canvasHeight - frameThickness * 2;
-
-  const maxAllowedBorder = Math.min(outerW, outerH) * 0.24;
-  const borderPx = clamp(rawBorderPx, 0, maxAllowedBorder);
-
-  const innerX = outerX + borderPx;
-  const innerY = outerY + borderPx;
-  const innerW = outerW - borderPx * 2;
-  const innerH = outerH - borderPx * 2;
-
-  const canvasOuterRadius = isFramePlacement
-    ? 0
-    : Math.max(8, Math.min(canvasWidth, canvasHeight) * 0.018);
-
-  const matOuterRadius = isFramePlacement ? 0 : Math.max(6, canvasOuterRadius - 2);
-  const innerRadius = isFramePlacement ? 0 : Math.max(5, matOuterRadius - 2);
-
-  return {
-    frameThickness,
-    borderPx,
-    canvasOuterRadius,
-    matOuterRadius,
-    innerRadius,
-    outerX,
-    outerY,
-    outerW,
-    outerH,
-    innerX,
-    innerY,
-    innerW,
-    innerH,
-  };
-}
-
-export function MatCanvas({ config, onLogoUpdate }: MatCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const [canvasSize, setCanvasSize] = useState({ width: 600, height: 400 });
-  const [pixelRatio, setPixelRatio] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
-  const [textures, setTextures] = useState<TextureSet>({
-    base: null,
-    soft: null,
-    noise: null,
-  });
-
-  const { width: matWidth, height: matHeight } = config.size;
-  const isLandscape = config.orientation === "landscape";
-  const isFramePlacement = config.placement === "frame";
-
-  const displayWidth = isLandscape
-    ? Math.max(matWidth, matHeight)
-    : Math.min(matWidth, matHeight);
-
-  const displayHeight = isLandscape
-    ? Math.min(matWidth, matHeight)
-    : Math.max(matWidth, matHeight);
-
-  const borderThickness = config.rubberBorder ? 2 : 0;
-
-  const selectedMatColor = useMemo(() => {
-    return MAT_COLORS.find((c) => c.code === config.colorCode)?.hex || "#4a4a4a";
-  }, [config.colorCode]);
+type IndoorSubtype = "normal" | "eco" | "luxe" | "budget"
+type OutdoorSubtype = "outdoor1" | "outdoor2" | "outdoor3" | "outdoor4"
+type VisibleTypeBlock = "indoor" | "outdoor" | null
+
+export function MatConfigurator() {
+  const [config, setConfig] = useState<MatConfig>(DEFAULT_CONFIG)
+  const [activeTab, setActiveTab] = useState("mat")
+  const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
+  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
+
+  const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
+  const [outdoorSubtype, setOutdoorSubtype] = useState<OutdoorSubtype>("outdoor1")
+  const [visibleTypeBlock, setVisibleTypeBlock] = useState<VisibleTypeBlock>(null)
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    }
-  }, []);
-
-  useEffect(() => {
-    const updateSize = () => {
-      if (!containerRef.current) return;
-
-      const containerWidth = containerRef.current.clientWidth;
-      const maxHeight = 500;
-      const aspectRatio = displayWidth / displayHeight;
-
-      let matWidthPx = containerWidth - 32;
-      let matHeightPx = matWidthPx / aspectRatio;
-
-      if (matHeightPx > maxHeight) {
-        matHeightPx = maxHeight;
-        matWidthPx = matHeightPx * aspectRatio;
-      }
-
-      const estimatedFrameThickness = isFramePlacement
-        ? clamp(Math.min(matWidthPx, matHeightPx) * 0.035, 12, 24)
-        : 0;
-
-      const totalWidth = matWidthPx + estimatedFrameThickness * 2;
-      const totalHeight = matHeightPx + estimatedFrameThickness * 2;
-
-      setCanvasSize({
-        width: Math.max(280, Math.round(totalWidth)),
-        height: Math.max(180, Math.round(totalHeight)),
-      });
-    };
-
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, [displayWidth, displayHeight, isFramePlacement]);
-
-  useEffect(() => {
-    let mounted = true;
-
     if (config.logo.dataUrl) {
-      loadImage(config.logo.dataUrl)
-        .then((img) => {
-          if (mounted) setLogoImage(img);
-        })
-        .catch(() => {
-          if (mounted) setLogoImage(null);
-        });
+      const img = new window.Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => setLogoImage(img)
+      img.src = config.logo.dataUrl
     } else {
-      setLogoImage(null);
+      setLogoImage(null)
     }
+  }, [config.logo.dataUrl])
 
-    return () => {
-      mounted = false;
-    };
-  }, [config.logo.dataUrl]);
+  const updateConfig = useCallback((updates: Partial<MatConfig>) => {
+    setConfig((prev) => ({ ...prev, ...updates }))
+  }, [])
 
-  useEffect(() => {
-    let mounted = true;
+  const handleMatTypeChange = useCallback(
+    (type: "indoor" | "outdoor") => {
+      updateConfig({ type })
+      setVisibleTypeBlock(type)
 
-    Promise.all([
-      loadImage(TEXTURES.base).catch(() => null),
-      loadImage(TEXTURES.soft).catch(() => null),
-      loadImage(TEXTURES.noise).catch(() => null),
-    ]).then(([base, soft, noise]) => {
-      if (!mounted) return;
-      setTextures({ base, soft, noise });
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const width = canvasSize.width;
-    const height = canvasSize.height;
-
-    canvas.width = Math.round(width * pixelRatio);
-    canvas.height = Math.round(height * pixelRatio);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
-    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-
-    const layout = getCanvasLayout({
-      canvasWidth: width,
-      canvasHeight: height,
-      displayWidth,
-      borderThickness,
-      isFramePlacement,
-    });
-
-    const {
-      frameThickness,
-      canvasOuterRadius,
-      matOuterRadius,
-      innerRadius,
-      outerX,
-      outerY,
-      outerW,
-      outerH,
-      innerX,
-      innerY,
-      innerW,
-      innerH,
-    } = layout;
-
-    const baseColor = muteHex(selectedMatColor);
-    const topColor = lightenHex(baseColor, 0.06);
-    const bottomColor = darkenHex(baseColor, 0.1);
-
-    if (!isFramePlacement) {
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 10;
-      ctx.fillStyle = "rgba(0,0,0,0.06)";
-      straightRectPath(
-        ctx,
-        outerX + 4,
-        outerY + 4,
-        outerW - 8,
-        outerH - 8
-      );
-      ctx.fill();
-      ctx.restore();
-
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.08)";
-      ctx.shadowBlur = 40;
-      ctx.shadowOffsetY = 6;
-      ctx.fillStyle = "rgba(0,0,0,0.025)";
-      straightRectPath(
-        ctx,
-        outerX + 10,
-        outerY + 10,
-        outerW - 20,
-        outerH - 20
-      );
-      ctx.fill();
-      ctx.restore();
-    }
-
-    if (isFramePlacement) {
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.14)";
-      ctx.shadowBlur = 18;
-      ctx.shadowOffsetY = 4;
-      ctx.fillStyle = "rgba(0,0,0,0.05)";
-      straightRectPath(ctx, 1, 1, width - 2, height - 2);
-      ctx.fill();
-      ctx.restore();
-
-      const frameGradient = ctx.createLinearGradient(0, 0, width, height);
-      frameGradient.addColorStop(0, "#f2f2f2");
-      frameGradient.addColorStop(0.16, "#d6d6d6");
-      frameGradient.addColorStop(0.5, "#a3a3a3");
-      frameGradient.addColorStop(0.82, "#d9d9d9");
-      frameGradient.addColorStop(1, "#f7f7f7");
-
-      ctx.save();
-      straightRectPath(ctx, 0, 0, width, height);
-      ctx.fillStyle = frameGradient;
-      ctx.fill();
-
-      if (textures.noise) {
-        const metalNoise = createScaledPattern(ctx, textures.noise, 0.22);
-        if (metalNoise) {
-          ctx.globalAlpha = 0.04;
-          ctx.fillStyle = metalNoise;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
+      if (type === "indoor") {
+        setIndoorSubtype("normal")
       }
 
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1;
-      straightRectPath(ctx, 0.5, 0.5, width - 1, height - 1);
-      ctx.stroke();
-
-      ctx.strokeStyle = "rgba(90,90,90,0.45)";
-      ctx.lineWidth = 1;
-      straightRectPath(ctx, 1.5, 1.5, width - 3, height - 3);
-      ctx.stroke();
-      ctx.restore();
-
-      const recessInset = clamp(frameThickness * 0.14, 2, 4);
-      const recessX = outerX - recessInset;
-      const recessY = outerY - recessInset;
-      const recessW = outerW + recessInset * 2;
-      const recessH = outerH + recessInset * 2;
-
-      const recessGradient = ctx.createLinearGradient(
-        recessX,
-        recessY,
-        recessX,
-        recessY + recessH
-      );
-      recessGradient.addColorStop(0, "rgba(55,55,55,0.34)");
-      recessGradient.addColorStop(0.35, "rgba(25,25,25,0.12)");
-      recessGradient.addColorStop(1, "rgba(0,0,0,0.24)");
-
-      ctx.save();
-      straightRectPath(ctx, recessX, recessY, recessW, recessH);
-      ctx.fillStyle = recessGradient;
-      ctx.fill();
-      ctx.restore();
-
-      ctx.save();
-      straightRectPath(
-        ctx,
-        recessX + 0.5,
-        recessY + 0.5,
-        recessW - 1,
-        recessH - 1
-      );
-      ctx.strokeStyle = "rgba(255,255,255,0.10)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    if (config.rubberBorder) {
-      const rubberGradient = ctx.createLinearGradient(0, outerY, 0, outerY + outerH);
-      rubberGradient.addColorStop(0, "#2a2a2a");
-      rubberGradient.addColorStop(0.5, "#161616");
-      rubberGradient.addColorStop(1, "#101010");
-
-      ctx.save();
-      straightRectPath(ctx, outerX, outerY, outerW, outerH);
-      ctx.fillStyle = rubberGradient;
-      ctx.fill();
-
-      if (textures.noise) {
-        const noisePattern = createScaledPattern(ctx, textures.noise, 0.25);
-        if (noisePattern) {
-          ctx.globalAlpha = 0.05;
-          ctx.fillStyle = noisePattern;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
+      if (type === "outdoor") {
+        setOutdoorSubtype("outdoor1")
       }
+    },
+    [updateConfig]
+  )
 
-      ctx.strokeStyle = "rgba(255,255,255,0.04)";
-      ctx.lineWidth = 1;
-      straightRectPath(
-        ctx,
-        outerX + 0.5,
-        outerY + 0.5,
-        outerW - 1,
-        outerH - 1
-      );
-      ctx.stroke();
+  const handleLogoUpload = useCallback(
+    (file: File, dataUrl: string) => {
+      setSuggestedColorCodes([])
 
-      ctx.restore();
+      updateConfig({
+        logo: {
+          ...config.logo,
+          file,
+          dataUrl,
+          position: { x: 0.5, y: 0.5 },
+          scale: 1,
+          rotation: 0,
+        },
+      })
+    },
+    [config.logo, updateConfig]
+  )
+
+  const handleLogoUpdate = useCallback(
+    (updates: Partial<MatConfig["logo"]>) => {
+      updateConfig({
+        logo: { ...config.logo, ...updates },
+      })
+    },
+    [config.logo, updateConfig]
+  )
+
+  const handleReset = useCallback(() => {
+    setConfig(DEFAULT_CONFIG)
+    setSuggestedColorCodes([])
+    setLogoImage(null)
+    setIndoorSubtype("normal")
+    setOutdoorSubtype("outdoor1")
+    setVisibleTypeBlock(null)
+  }, [])
+
+  const parseEuroAmount = (value: string): number | null => {
+    if (!value) return null
+
+    let cleaned = value.replace(/€/g, "").replace(/\s/g, "").trim()
+
+    // Europese of internationale notatie ondersteunen
+    // 1.234,56 -> 1234.56
+    // 1,234.56 -> 1234.56
+    if (cleaned.includes(".") && cleaned.includes(",")) {
+      const lastDot = cleaned.lastIndexOf(".")
+      const lastComma = cleaned.lastIndexOf(",")
+
+      if (lastComma > lastDot) {
+        cleaned = cleaned.replace(/\./g, "").replace(",", ".")
+      } else {
+        cleaned = cleaned.replace(/,/g, "")
+      }
+    } else if (cleaned.includes(",")) {
+      // bv. 41,68
+      cleaned = cleaned.replace(",", ".")
     }
+    // als alleen punt aanwezig is, bv. 41.68: niets doen
 
-    ctx.save();
-    straightRectPath(ctx, innerX, innerY, innerW, innerH);
-    ctx.clip();
+    const parsed = Number(cleaned)
+    return Number.isFinite(parsed) ? parsed : null
+  }
 
-    const matGradient = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
-    matGradient.addColorStop(0, topColor);
-    matGradient.addColorStop(0.5, baseColor);
-    matGradient.addColorStop(1, bottomColor);
-    ctx.fillStyle = matGradient;
-    ctx.fillRect(innerX, innerY, innerW, innerH);
+  const getDisplayedConfiguratorPrice = (): number | null => {
+    const bodyText = document.body.innerText || ""
 
-    const sideLight = ctx.createLinearGradient(innerX, innerY, innerX + innerW, innerY);
-    sideLight.addColorStop(0, "rgba(255,255,255,0.03)");
-    sideLight.addColorStop(0.4, "rgba(255,255,255,0.01)");
-    sideLight.addColorStop(1, "rgba(0,0,0,0.04)");
-    ctx.fillStyle = sideLight;
-    ctx.fillRect(innerX, innerY, innerW, innerH);
-
-    if (textures.base) {
-      const pattern = createScaledPattern(ctx, textures.base, 0.35);
-      if (pattern) {
-        ctx.globalAlpha = 0.11;
-        ctx.fillStyle = pattern;
-        ctx.fillRect(innerX, innerY, innerW, innerH);
-        ctx.globalAlpha = 1;
+    // Eerst Subtotal zoeken (meestal beter als unit/subtotal prijs voor WooCommerce)
+    const subtotalMatch = bodyText.match(/Subtotal[\s\S]{0,80}?€\s*[\d.,]+/i)
+    if (subtotalMatch) {
+      const euroMatch = subtotalMatch[0].match(/€\s*[\d.,]+/)
+      if (euroMatch) {
+        const amount = parseEuroAmount(euroMatch[0])
+        if (amount !== null) return amount
       }
     }
 
-    if (textures.soft) {
-      const pattern = createScaledPattern(ctx, textures.soft, 0.42);
-      if (pattern) {
-        ctx.globalAlpha = 0.07;
-        ctx.fillStyle = pattern;
-        ctx.fillRect(innerX, innerY, innerW, innerH);
-        ctx.globalAlpha = 1;
+    // Fallback: Unit price
+    const unitPriceMatch = bodyText.match(/Unit price[\s\S]{0,80}?€\s*[\d.,]+/i)
+    if (unitPriceMatch) {
+      const euroMatch = unitPriceMatch[0].match(/€\s*[\d.,]+/)
+      if (euroMatch) {
+        const amount = parseEuroAmount(euroMatch[0])
+        if (amount !== null) return amount
       }
     }
 
-    if (textures.noise) {
-      const pattern = createScaledPattern(ctx, textures.noise, 0.18);
-      if (pattern) {
-        ctx.globalAlpha = 0.025;
-        ctx.fillStyle = pattern;
-        ctx.fillRect(innerX, innerY, innerW, innerH);
-        ctx.globalAlpha = 1;
+    // Laatste fallback: Total
+    const totalMatch = bodyText.match(/Total[\s\S]{0,80}?€\s*[\d.,]+/i)
+    if (totalMatch) {
+      const euroMatch = totalMatch[0].match(/€\s*[\d.,]+/)
+      if (euroMatch) {
+        const amount = parseEuroAmount(euroMatch[0])
+        if (amount !== null) return amount
       }
     }
 
-    const pileGradient = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
-    pileGradient.addColorStop(0, "rgba(255,255,255,0.03)");
-    pileGradient.addColorStop(0.2, "rgba(255,255,255,0.01)");
-    pileGradient.addColorStop(1, "rgba(0,0,0,0.05)");
-    ctx.fillStyle = pileGradient;
-    ctx.fillRect(innerX, innerY, innerW, innerH);
+    return null
+  }
 
-    if (logoImage && config.logo.dataUrl) {
-      const preparedLogo = createPreparedLogoCanvas(logoImage);
+  const handleAddToCart = useCallback(async () => {
+    if (isAddingToCart) return
 
-      if (preparedLogo) {
-        const printedLogo = createPrintedLogoCanvas(
-          preparedLogo,
-          textures.base,
-          textures.soft,
-          textures.noise
-        );
+    try {
+      setIsAddingToCart(true)
 
-        const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-          printedLogo,
-          config.logo.scale,
-          innerW,
-          innerH
-        );
+      const canvas = document.getElementById("carpetz-mat-preview-canvas") as HTMLCanvasElement | null
 
-        const logoCenterX = innerX + innerW * config.logo.position.x;
-        const logoCenterY = innerY + innerH * config.logo.position.y;
-
-        ctx.save();
-        ctx.translate(logoCenterX, logoCenterY);
-        ctx.rotate((config.logo.rotation * Math.PI) / 180);
-        ctx.globalAlpha = 0.96;
-        ctx.filter = "none";
-        ctx.globalCompositeOperation = "source-over";
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-
-        ctx.drawImage(
-          printedLogo,
-          -logoWidth / 2,
-          -logoHeight / 2,
-          logoWidth,
-          logoHeight
-        );
-
-        ctx.restore();
+      if (!canvas) {
+        alert("Mat preview canvas niet gevonden.")
+        return
       }
+
+      // Snellere export dan PNG
+      const previewDataUrl = canvas.toDataURL("image/jpeg", 0.82)
+
+      // 1) Upload de preview naar WordPress
+      const uploadResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/upload-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: previewDataUrl,
+        }),
+      })
+
+      const uploadResult = await uploadResponse.json()
+
+      if (!uploadResponse.ok || !uploadResult?.success || !uploadResult?.url) {
+        console.error("Upload preview mislukt:", uploadResult)
+        alert("Preview upload mislukt.")
+        return
+      }
+
+      const previewUrl = uploadResult.url
+
+      // 2) Lees prijs uit configurator
+      const unitPrice = getDisplayedConfiguratorPrice()
+
+      if (unitPrice === null) {
+        alert("Prijs kon niet uit de configurator gehaald worden.")
+        return
+      }
+
+      console.log("Prijs uit configurator:", unitPrice)
+
+      // 3) Voeg server-side toe aan WooCommerce cart via POST endpoint
+      //    => geen ?add-to-cart=... URL meer, dus geen automatische duplicate adds
+      const addResponse = await fetch("https://www.carpetz.be/wp-json/carpetz/v1/add-configured-mat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_id: 5950,
+          quantity: config.quantity,
+          preview_url: previewUrl,
+          custom_price: unitPrice,
+          mat_type: config.type,
+          placement: config.placement,
+          orientation: config.orientation,
+          size_label: `${config.size.width} x ${config.size.height} cm`,
+          width_cm: config.size.width,
+          height_cm: config.size.height,
+          rubber_border: config.rubberBorder ? "Ja" : "Nee",
+          logo_colors: config.logoColors,
+          color_code: config.colorCode,
+          is_custom_size: config.size.isCustom ? "Ja" : "Nee",
+        }),
+      })
+
+      const addResult = await addResponse.json()
+
+      if (!addResponse.ok || !addResult?.success) {
+        console.error("Toevoegen aan cart mislukt:", addResult)
+        alert("Toevoegen aan winkelwagen mislukt.")
+        return
+      }
+
+      // 4) Redirect naar SCHONE winkelwagen-URL
+      const cleanCartUrl = "https://www.carpetz.be/winkelwagen/"
+
+      if (window.top) {
+        window.top.location.href = cleanCartUrl
+      } else {
+        window.location.href = cleanCartUrl
+      }
+    } catch (error) {
+      console.error("handleAddToCart error:", error)
+      alert("Er is iets misgegaan bij het toevoegen aan de winkelwagen.")
+    } finally {
+      setIsAddingToCart(false)
     }
+  }, [config, isAddingToCart])
 
-    ctx.restore();
+  const handleColorSuggestionsFound = useCallback((codes: string[]) => {
+    setSuggestedColorCodes(codes)
+  }, [])
 
-    ctx.save();
-    straightRectPath(ctx, innerX, innerY, innerW, innerH);
-    ctx.clip();
+  const handleResetSuggestions = useCallback(() => {
+    setSuggestedColorCodes([])
+  }, [])
 
-    const edgeSize = Math.max(10, Math.min(innerW, innerH) * 0.035);
-
-    const topEdge = ctx.createLinearGradient(0, innerY, 0, innerY + edgeSize);
-    topEdge.addColorStop(0, "rgba(255,255,255,0.05)");
-    topEdge.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = topEdge;
-    ctx.fillRect(innerX, innerY, innerW, edgeSize);
-
-    const bottomEdge = ctx.createLinearGradient(
-      0,
-      innerY + innerH - edgeSize,
-      0,
-      innerY + innerH
-    );
-    bottomEdge.addColorStop(0, "rgba(0,0,0,0)");
-    bottomEdge.addColorStop(1, "rgba(0,0,0,0.10)");
-    ctx.fillStyle = bottomEdge;
-    ctx.fillRect(innerX, innerY + innerH - edgeSize, innerW, edgeSize);
-
-    const rightEdge = ctx.createLinearGradient(
-      innerX + innerW - edgeSize,
-      0,
-      innerX + innerW,
-      0
-    );
-    rightEdge.addColorStop(0, "rgba(0,0,0,0)");
-    rightEdge.addColorStop(1, "rgba(0,0,0,0.06)");
-    ctx.fillStyle = rightEdge;
-    ctx.fillRect(innerX + innerW - edgeSize, innerY, edgeSize, innerH);
-
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = isFramePlacement
-      ? "rgba(255,255,255,0.02)"
-      : "rgba(255,255,255,0.04)";
-    ctx.lineWidth = 1;
-    straightRectPath(ctx, innerX + 0.5, innerY + 0.5, innerW - 1, innerH - 1);
-    ctx.stroke();
-    ctx.restore();
-
-    if (isFramePlacement) {
-      ctx.save();
-      straightRectPath(ctx, outerX, outerY, outerW, outerH);
-      ctx.clip();
-
-      const insetShade = ctx.createLinearGradient(
-        0,
-        outerY,
-        0,
-        outerY + Math.max(12, frameThickness)
-      );
-      insetShade.addColorStop(0, "rgba(0,0,0,0.12)");
-      insetShade.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = insetShade;
-      ctx.fillRect(outerX, outerY, outerW, Math.max(12, frameThickness));
-
-      ctx.restore();
-    }
-  }, [
-    canvasSize,
-    pixelRatio,
-    displayWidth,
-    borderThickness,
-    selectedMatColor,
-    textures,
-    logoImage,
-    config,
-    isFramePlacement,
-  ]);
-
-  useEffect(() => {
-    drawCanvas();
-  }, [drawCanvas]);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!logoImage) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
-
-    const layout = getCanvasLayout({
-      canvasWidth: canvasSize.width,
-      canvasHeight: canvasSize.height,
-      displayWidth,
-      borderThickness,
-      isFramePlacement,
-    });
-
-    const { innerX, innerY, innerW, innerH } = layout;
-
-    const relX = (localX - innerX) / innerW;
-    const relY = (localY - innerY) / innerH;
-
-    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) return;
-
-    const preparedLogo = createPreparedLogoCanvas(logoImage);
-    if (!preparedLogo) return;
-
-    const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-      preparedLogo,
-      config.logo.scale,
-      innerW,
-      innerH
-    );
-
-    const logoNormW = logoWidth / innerW;
-    const logoNormH = logoHeight / innerH;
-
-    const isInsideLogo =
-      Math.abs(relX - config.logo.position.x) <= logoNormW / 2 &&
-      Math.abs(relY - config.logo.position.y) <= logoNormH / 2;
-
-    if (!isInsideLogo) return;
-
-    setIsDragging(true);
-    setDragStart({
-      x: relX - config.logo.position.x,
-      y: relY - config.logo.position.y,
-    });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !logoImage) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
-
-    const layout = getCanvasLayout({
-      canvasWidth: canvasSize.width,
-      canvasHeight: canvasSize.height,
-      displayWidth,
-      borderThickness,
-      isFramePlacement,
-    });
-
-    const { innerX, innerY, innerW, innerH } = layout;
-
-    const relX = (localX - innerX) / innerW;
-    const relY = (localY - innerY) / innerH;
-
-    const preparedLogo = createPreparedLogoCanvas(logoImage);
-    if (!preparedLogo) return;
-
-    const { width: logoWidth, height: logoHeight } = getRenderedLogoSize(
-      preparedLogo,
-      config.logo.scale,
-      innerW,
-      innerH
-    );
-
-    const halfNormW = logoWidth / innerW / 2;
-    const halfNormH = logoHeight / innerH / 2;
-
-    const newX = clamp(relX - dragStart.x, halfNormW, 1 - halfNormW);
-    const newY = clamp(relY - dragStart.y, halfNormH, 1 - halfNormH);
-
-    onLogoUpdate({
-      position: { x: newX, y: newY },
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleCenterLogo = () => {
-    onLogoUpdate({ position: { x: 0.5, y: 0.5 } });
-  };
-
-  const handleDeleteLogo = () => {
-    onLogoUpdate({
-      file: null,
-      dataUrl: null,
-      position: { x: 0.5, y: 0.5 },
-      scale: 1,
-      rotation: 0,
-    });
-  };
+  const selectedColor = MAT_COLORS.find((c) => c.code === config.colorCode)
 
   return (
-    <div ref={containerRef} className="space-y-4">
-      <div className="relative flex items-center justify-center">
-        <canvas
-  id="carpetz-mat-preview-canvas"
-  ref={canvasRef}
-  data-mat-canvas="true"
-  className={cn("cursor-crosshair", isDragging && "cursor-grabbing")}
-  onMouseDown={handleMouseDown}
-  onMouseMove={handleMouseMove}
-  onMouseUp={handleMouseUp}
-  onMouseLeave={handleMouseUp}
-/>
-      </div>
-
-      {config.logo.dataUrl && (
-        <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="outline" onClick={handleCenterLogo}>
-              <Crosshair className="w-4 h-4 mr-1" />
-              Center
-            </Button>
-
-            <Button size="sm" variant="destructive" onClick={handleDeleteLogo}>
-              <Trash2 className="w-4 h-4 mr-1" />
-              Remove
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm flex items-center gap-1">
-                  <ZoomIn className="w-4 h-4" />
-                  Scale
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {Math.round(config.logo.scale * 100)}%
-                </span>
-              </div>
-
-              <Slider
-                value={[config.logo.scale * 100]}
-                onValueChange={(values) => {
-                  const newValue = Array.isArray(values) ? values[0] : values;
-                  onLogoUpdate({ scale: newValue / 100 });
-                }}
-                min={10}
-                max={300}
-                step={5}
-              />
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-foreground flex items-center justify-center">
+              <Layers className="w-5 h-5 text-background" />
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm flex items-center gap-1">
-                  <RotateCw className="w-4 h-4" />
-                  Rotation
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {config.logo.rotation}°
-                </span>
-              </div>
-
-              <Slider
-                value={[config.logo.rotation]}
-                onValueChange={(values) => {
-                  const newValue = Array.isArray(values) ? values[0] : values;
-                  onLogoUpdate({ rotation: newValue });
-                }}
-                min={0}
-                max={360}
-                step={5}
-              />
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">Logo Mat Configurator</h1>
+              <p className="text-sm text-muted-foreground">Design your custom entrance mat</p>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Move className="w-3 h-3" />
-            Drag the logo on the canvas to reposition
-          </p>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddToCart}
+              disabled={isAddingToCart}
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              {isAddingToCart ? "Adding..." : "Add to Cart"}
+            </Button>
+          </div>
         </div>
-      )}
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr_320px] lg:grid-cols-[380px_1fr] gap-6">
+          {/* Configuration Panel */}
+          <Card className="lg:sticky lg:top-24 lg:h-[calc(100vh-120px)] flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Configure Your Mat</CardTitle>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-hidden p-0">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+                <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
+                  <TabsTrigger value="mat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                    <Layers className="w-4 h-4" />
+                    Mat
+                  </TabsTrigger>
+                  <TabsTrigger value="colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                    <Palette className="w-4 h-4" />
+                    Colors
+                  </TabsTrigger>
+                  <TabsTrigger value="logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                    <ImageIcon className="w-4 h-4" />
+                    Logo
+                  </TabsTrigger>
+                </TabsList>
+
+                <ScrollArea className="flex-1">
+                  <div className="px-4 py-4">
+                    <TabsContent value="mat" className="mt-0 space-y-6">
+                      {/* Mat Type */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Mat Type</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMatTypeChange("indoor")}
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              visibleTypeBlock === "indoor"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">Indoor</div>
+                            <div className="text-xs text-muted-foreground">Soft carpet finish</div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleMatTypeChange("outdoor")}
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              visibleTypeBlock === "outdoor"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">Outdoor</div>
+                            <div className="text-xs text-muted-foreground">Weather resistant</div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Indoor Type */}
+                      {visibleTypeBlock === "indoor" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Indoor Type</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("normal")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "normal"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Normal</div>
+                              <div className="text-xs text-muted-foreground">Standard quality</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("eco")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "eco"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Eco</div>
+                              <div className="text-xs text-muted-foreground">Sustainable option</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("luxe")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "luxe"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Luxe</div>
+                              <div className="text-xs text-muted-foreground">Premium finish</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIndoorSubtype("budget")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                indoorSubtype === "budget"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Budget</div>
+                              <div className="text-xs text-muted-foreground">Entry-level option</div>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Outdoor Type */}
+                      {visibleTypeBlock === "outdoor" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Outdoor Type</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor1")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor1"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 1</div>
+                              <div className="text-xs text-muted-foreground">Standard outdoor use</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor2")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor2"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 2</div>
+                              <div className="text-xs text-muted-foreground">Extra scraper effect</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor3")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor3"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 3</div>
+                              <div className="text-xs text-muted-foreground">Heavy-duty option</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setOutdoorSubtype("outdoor4")}
+                              className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                outdoorSubtype === "outdoor4"
+                                  ? "border-foreground bg-foreground/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                            >
+                              <div className="font-medium text-sm">Outdoor 4</div>
+                              <div className="text-xs text-muted-foreground">Premium outdoor finish</div>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Placement */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Placement</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateConfig({
+                                placement: "floor",
+                                rubberBorder: true,
+                              })
+                            }
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              config.placement === "floor"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">Floor</div>
+                            <div className="text-xs text-muted-foreground">Standard placement</div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateConfig({
+                                placement: "frame",
+                                rubberBorder: false,
+                              })
+                            }
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              config.placement === "frame"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">In-Floor Frame</div>
+                            <div className="text-xs text-muted-foreground">Recessed mounting</div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Orientation */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Orientation</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateConfig({ orientation: "landscape" })}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                              config.orientation === "landscape"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="w-12 h-8 mx-auto mb-2 bg-muted-foreground/20 rounded" />
+                            <div className="text-xs">Landscape</div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => updateConfig({ orientation: "portrait" })}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                              config.orientation === "portrait"
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="w-8 h-12 mx-auto mb-2 bg-muted-foreground/20 rounded" />
+                            <div className="text-xs">Portrait</div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {config.placement !== "frame" && (
+                        <>
+                          <Separator />
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm font-medium">Rubber Border</Label>
+                            </div>
+                            <Switch
+                              checked={config.rubberBorder}
+                              onCheckedChange={(v) => updateConfig({ rubberBorder: v })}
+                            />
+                          </div>
+
+                          <Separator />
+                        </>
+                      )}
+
+                      {/* Size */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Size (cm)</Label>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {STANDARD_SIZES.map((size) => {
+                            const isSelected =
+                              !config.size.isCustom &&
+                              config.size.width === size.width &&
+                              config.size.height === size.height
+
+                            return (
+                              <button
+                                key={size.label}
+                                type="button"
+                                onClick={() =>
+                                  updateConfig({
+                                    size: {
+                                      width: size.width,
+                                      height: size.height,
+                                      isCustom: false,
+                                    },
+                                  })
+                                }
+                                className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                  isSelected
+                                    ? "border-foreground bg-foreground/5"
+                                    : "border-border hover:border-muted-foreground"
+                                }`}
+                              >
+                                <div className="font-medium text-sm">{size.label}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {size.width} × {size.height} cm
+                                </div>
+                              </button>
+                            )
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateConfig({
+                                size: {
+                                  ...config.size,
+                                  isCustom: true,
+                                },
+                              })
+                            }
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${
+                              config.size.isCustom
+                                ? "border-foreground bg-foreground/5"
+                                : "border-border hover:border-muted-foreground"
+                            }`}
+                          >
+                            <div className="font-medium text-sm">Custom Size</div>
+                            <div className="text-xs text-muted-foreground">Enter your own dimensions</div>
+                          </button>
+                        </div>
+
+                        {config.size.isCustom && (
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Width (cm)</Label>
+                              <Input
+                                type="number"
+                                min={30}
+                                max={300}
+                                value={config.size.width}
+                                onChange={(e) =>
+                                  updateConfig({
+                                    size: {
+                                      ...config.size,
+                                      width: parseInt(e.target.value) || 30,
+                                      isCustom: true,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Height (cm)</Label>
+                              <Input
+                                type="number"
+                                min={30}
+                                max={300}
+                                value={config.size.height}
+                                onChange={(e) =>
+                                  updateConfig({
+                                    size: {
+                                      ...config.size,
+                                      height: parseInt(e.target.value) || 30,
+                                      isCustom: true,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quantity */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Quantity</Label>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => updateConfig({ quantity: Math.max(1, config.quantity - 1) })}
+                            disabled={config.quantity <= 1}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </Button>
+
+                          <Input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={config.quantity}
+                            onChange={(e) =>
+                              updateConfig({
+                                quantity: Math.max(1, Math.min(100, parseInt(e.target.value) || 1)),
+                              })
+                            }
+                            className="w-20 text-center"
+                          />
+
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => updateConfig({ quantity: Math.min(100, config.quantity + 1) })}
+                            disabled={config.quantity >= 100}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        {config.quantity >= 5 && (
+                          <Badge variant="secondary" className="text-xs">
+                            Volume discount applied!
+                          </Badge>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="colors" className="mt-0 space-y-6">
+                      {selectedColor && (
+                        <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                          <div
+                            className="w-10 h-10 rounded-md border border-border"
+                            style={{ backgroundColor: selectedColor.hex }}
+                          />
+                          <div>
+                            <p className="font-medium text-sm">{selectedColor.name}</p>
+                            <p className="text-xs text-muted-foreground">{selectedColor.code}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <ColorPalette
+                        selectedCode={config.colorCode}
+                        onSelect={(code) => updateConfig({ colorCode: code })}
+                        suggestedCodes={suggestedColorCodes}
+                        onResetSuggestions={handleResetSuggestions}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="logo" className="mt-0 space-y-6">
+                      <LogoUploader
+                        currentFile={config.logo.file}
+                        onUpload={handleLogoUpload}
+                        onColorSuggestionsFound={handleColorSuggestionsFound}
+                      />
+
+                      {config.logo.dataUrl && (
+                        <>
+                          <Separator />
+
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Logo Colors</Label>
+                            <Select
+                              value={config.logoColors.toString()}
+                              onValueChange={(v) => updateConfig({ logoColors: parseInt(v) })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1 color (included)</SelectItem>
+                                <SelectItem value="2">2 colors (+€5)</SelectItem>
+                                <SelectItem value="3">3 colors (+€10)</SelectItem>
+                                <SelectItem value="4">4 colors (+€15)</SelectItem>
+                                <SelectItem value="5">5+ colors (+€20)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Number of distinct colors in your logo for printing
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </TabsContent>
+                  </div>
+                </ScrollArea>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          {/* Preview Panel */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Live Preview</CardTitle>
+                  <RenderPreview config={config} logoImage={logoImage} />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <MatCanvas config={config} onLogoUpdate={handleLogoUpdate} />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Price Calculator - Desktop */}
+          <div className="hidden xl:block">
+            <div className="sticky top-24">
+              <PriceCalculator config={config} />
+            </div>
+          </div>
+        </div>
+
+        {/* Price Calculator - Mobile/Tablet */}
+        <div className="xl:hidden mt-6">
+          <PriceCalculator config={config} />
+        </div>
+      </main>
     </div>
-  );
+  )
 }
