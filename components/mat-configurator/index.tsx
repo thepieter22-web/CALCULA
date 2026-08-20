@@ -481,7 +481,7 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">Op de vloer/div>
+                            <div className="font-medium text-sm">Op de vloer</div>
                             <div className="text-xs text-muted-foreground">Standard placement</div>
                           </button>
 
