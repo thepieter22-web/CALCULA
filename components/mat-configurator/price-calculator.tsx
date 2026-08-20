@@ -62,7 +62,7 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Unit price</span>
+            <span className="text-muted-foreground">Prijs logomat</span>
             <span className="font-medium">€{pricing.unitPrice.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -83,7 +83,7 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Subtotaall</span>
+            <span className="text-muted-foreground">Subtotaal</span>
             <span className="font-medium">€{pricing.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
