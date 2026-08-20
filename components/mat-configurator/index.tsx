@@ -284,7 +284,7 @@ export function MatConfigurator() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr_320px] lg:grid-cols-[380px_1fr] gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr_380px] lg:grid-cols-[380px_1fr] gap-6">
           {/* Configuration Panel */}
           <Card className="lg:sticky lg:top-24 lg:h-[calc(100vh-120px)] flex flex-col">
             <CardHeader className="pb-2">
