@@ -294,17 +294,17 @@ export function MatConfigurator() {
             <CardContent className="flex-1 overflow-hidden p-0">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
-                  <TabsTrigger value="Logomat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="mat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Layers className="w-4 h-4" />
-                    Mat
+                    Logo Mat
                   </TabsTrigger>
-                  <TabsTrigger value="Kleuren" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="Colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Palette className="w-4 h-4" />
-                    Colors
+                    Kleuren
                   </TabsTrigger>
-                  <TabsTrigger value="Logo Upload" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="Logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <ImageIcon className="w-4 h-4" />
-                    Logo
+                    Logo Upload
                   </TabsTrigger>
                 </TabsList>
 
