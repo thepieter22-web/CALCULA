@@ -264,8 +264,8 @@ export function MatConfigurator() {
               <Layers className="w-5 h-5 text-background" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">Logo Mat Configurator</h1>
-              <p className="text-sm text-muted-foreground">Design your custom entrance mat</p>
+              <h1 className="text-xl font-semibold text-foreground">Carpetz Logomat Configurator</h1>
+              <p className="text-sm text-muted-foreground">Upload je logo en stel jouw logomat samen</p>
             </div>
           </div>
 
@@ -276,7 +276,7 @@ export function MatConfigurator() {
             </Button>      
 <Button size="sm" onClick={handleAddToCart}>
   <ShoppingCart className="w-4 h-4 mr-2" />
-  Add to Cart
+  Bestelling plaatsen
 </Button>
           </div>
         </div>
