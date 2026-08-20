@@ -313,7 +313,7 @@ export function MatConfigurator() {
                     <TabsContent value="mat" className="mt-0 space-y-6">
                       {/* Mat Type */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">Mat Type</Label>
+                        <Label className="text-sm font-medium">Type logomat</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -465,7 +465,7 @@ export function MatConfigurator() {
 
                       {/* Placement */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">Placement</Label>
+                        <Label className="text-sm font-medium">Plaatsing</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -481,7 +481,7 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">Floor</div>
+                            <div className="font-medium text-sm">Op de vloer/div>
                             <div className="text-xs text-muted-foreground">Standard placement</div>
                           </button>
 
@@ -499,7 +499,7 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">In-Floor Frame</div>
+                            <div className="font-medium text-sm">Inbouwframe</div>
                             <div className="text-xs text-muted-foreground">Recessed mounting</div>
                           </button>
                         </div>
@@ -507,7 +507,7 @@ export function MatConfigurator() {
 
                       {/* Orientation */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">Orientation</Label>
+                        <Label className="text-sm font-medium">Oriëntatie</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -519,7 +519,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="w-12 h-8 mx-auto mb-2 bg-muted-foreground/20 rounded" />
-                            <div className="text-xs">Landscape</div>
+                            <div className="text-xs">Liggend</div>
                           </button>
 
                           <button
@@ -532,7 +532,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="w-8 h-12 mx-auto mb-2 bg-muted-foreground/20 rounded" />
-                            <div className="text-xs">Portrait</div>
+                            <div className="text-xs">Staand</div>
                           </button>
                         </div>
                       </div>
@@ -542,7 +542,7 @@ export function MatConfigurator() {
 
                           <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
-                              <Label className="text-sm font-medium">Rubber Border</Label>
+                              <Label className="text-sm font-medium">Rubberen rand</Label>
                             </div>
                             <Switch
                               checked={config.rubberBorder}
@@ -556,7 +556,7 @@ export function MatConfigurator() {
 
                       {/* Size as blocks */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">Size (cm)</Label>
+                        <Label className="text-sm font-medium">Afmetingen (cm)</Label>
 
                         <div className="grid grid-cols-2 gap-2">
                           {STANDARD_SIZES.map((size) => {
@@ -608,8 +608,8 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">Custom Size</div>
-                            <div className="text-xs text-muted-foreground">Enter your own dimensions</div>
+                            <div className="font-medium text-sm">Eigen afmetingen</div>
+                            <div className="text-xs text-muted-foreground">Voer jouw afmetingen in</div>
                           </button>
                         </div>
 
@@ -661,7 +661,7 @@ export function MatConfigurator() {
 
                       {/* Quantity */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">Quantity</Label>
+                        <Label className="text-sm font-medium">Aantal</Label>
                         <div className="flex items-center gap-3">
                           <Button
                             variant="outline"
