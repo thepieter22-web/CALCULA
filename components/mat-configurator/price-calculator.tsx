@@ -42,12 +42,14 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
               )}
             </span>
           </div>
-          {config.rubberBorder && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Rubberen rand</span>
-              <span className="font-medium text-green-600">+{PRICING.rubberBorder.percentage * 100}%</span>
-            </div>
-          )}
+         {config.rubberBorder && (
+  <div className="flex justify-between">
+    <span className="text-muted-foreground">Rubberen rand</span>
+    <span className="font-medium">
+      ✅ Ja
+    </span>
+  </div>
+)}
           {config.logoColors > 1 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Aantal logokleuren</span>
