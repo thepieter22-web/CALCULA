@@ -41,8 +41,8 @@ const DEFAULT_CONFIG: MatConfig = {
   logoColors: 1,
 }
 
-type BinnenSubtype = "normal" | "eco" | "luxe" | "budget"
-type BuitenSubtype = "Buiten1" | "Buiten2" | "Buiten3" | "Buiten4"
+type IndoorSubtype = "normal" | "eco" | "luxe" | "budget"
+type OutdoorSubtype = "outdoor1" | "outdoor2" | "outdoor3" | "outdoor4"
 type VisibleTypeBlock = "indoor" | "outdoor" | null
 
 export function MatConfigurator() {
@@ -51,8 +51,8 @@ export function MatConfigurator() {
   const [suggestedColorCodes, setSuggestedColorCodes] = useState<string[]>([])
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null)
 
-  const [BinnenSubtype, setBinnenSubtype] = useState<BinnenSubtype>("normal")
-  const [BuitenSubtype, setBuitenSubtype] = useState<BuitenSubtype>("Buiten1")
+  const [indoorSubtype, setIndoorSubtype] = useState<IndoorSubtype>("normal")
+  const [outdoorSubtype, setOutdoorSubtype] = useState<OutdoorSubtype>("outdoor1")
   const [visibleTypeBlock, setVisibleTypeBlock] = useState<VisibleTypeBlock>(null)
 
   useEffect(() => {
@@ -76,11 +76,11 @@ export function MatConfigurator() {
       setVisibleTypeBlock(type)
 
       if (type === "indoor") {
-        setBinnenSubtype("normal")
+        setIndoorSubtype("normal")
       }
 
       if (type === "outdoor") {
-        setBuitenSubtype("Buiten1")
+        setOutdoorSubtype("outdoor1")
       }
     },
     [updateConfig]
@@ -117,8 +117,8 @@ export function MatConfigurator() {
     setConfig(DEFAULT_CONFIG)
     setSuggestedColorCodes([])
     setLogoImage(null)
-    setBinnenSubtype("normal")
-    setBuitenSubtype("Buiten1")
+    setIndoorSubtype("normal")
+    setOutdoorSubtype("outdoor1")
     setVisibleTypeBlock(null)
   }, [])
 
@@ -264,13 +264,8 @@ export function MatConfigurator() {
               <Layers className="w-5 h-5 text-background" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">
-  Carpetz Logomat Configurator
-</h1>
-
-<p className="text-sm text-muted-foreground">
-  Upload je logo, kies jouw afmetingen en bestel jouw logomat online.
-</p>
+              <h1 className="text-xl font-semibold text-foreground">Logo Mat Configurator</h1>
+              <p className="text-sm text-muted-foreground">Design your custom entrance mat</p>
             </div>
           </div>
 
@@ -281,7 +276,7 @@ export function MatConfigurator() {
             </Button>      
 <Button size="sm" onClick={handleAddToCart}>
   <ShoppingCart className="w-4 h-4 mr-2" />
-  Bestelling plaatsen
+  Add to Cart
 </Button>
           </div>
         </div>
@@ -293,7 +288,7 @@ export function MatConfigurator() {
           {/* Configuration Panel */}
           <Card className="lg:sticky lg:top-24 lg:h-[calc(100vh-120px)] flex flex-col">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Stel jouw logomat samen</CardTitle>
+              <CardTitle className="text-lg">Configure Your Mat</CardTitle>
             </CardHeader>
 
             <CardContent className="flex-1 overflow-hidden p-0">
@@ -301,15 +296,15 @@ export function MatConfigurator() {
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
                   <TabsTrigger value="mat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Layers className="w-4 h-4" />
-                    Logomat
+                    Mat
                   </TabsTrigger>
-                  <TabsTrigger value="Kleuren" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Palette className="w-4 h-4" />
-                    Kleuren
+                    Colors
                   </TabsTrigger>
-                  <TabsTrigger value="Logo Upload" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <ImageIcon className="w-4 h-4" />
-                    Logo Upload
+                    Logo
                   </TabsTrigger>
                 </TabsList>
 
@@ -329,7 +324,7 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">Binnen</div>
+                            <div className="font-medium text-sm">Indoor</div>
                             <div className="text-xs text-muted-foreground">Soft carpet finish</div>
                           </button>
 
@@ -342,22 +337,22 @@ export function MatConfigurator() {
                                 : "border-border hover:border-muted-foreground"
                             }`}
                           >
-                            <div className="font-medium text-sm">Buiten</div>
+                            <div className="font-medium text-sm">Outdoor</div>
                             <div className="text-xs text-muted-foreground">Weather resistant</div>
                           </button>
                         </div>
                       </div>
 
-                      {/* Binnen Type */}
+                      {/* Indoor Type */}
                       {visibleTypeBlock === "indoor" && (
                         <div className="space-y-3">
-                          <Label className="text-sm font-medium">Binnen Type</Label>
+                          <Label className="text-sm font-medium">Indoor Type</Label>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              onClick={() => setBinnenSubtype("normal")}
+                              onClick={() => setIndoorSubtype("normal")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BinnenSubtype === "normal"
+                                indoorSubtype === "normal"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
@@ -368,9 +363,9 @@ export function MatConfigurator() {
 
                             <button
                               type="button"
-                              onClick={() => setBinnenSubtype("eco")}
+                              onClick={() => setIndoorSubtype("eco")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BinnenSubtype === "eco"
+                                indoorSubtype === "eco"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
@@ -381,9 +376,9 @@ export function MatConfigurator() {
 
                             <button
                               type="button"
-                              onClick={() => setBinnenSubtype("luxe")}
+                              onClick={() => setIndoorSubtype("luxe")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BinnenSubtype === "luxe"
+                                indoorSubtype === "luxe"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
@@ -394,9 +389,9 @@ export function MatConfigurator() {
 
                             <button
                               type="button"
-                              onClick={() => setBinnenSubtype("budget")}
+                              onClick={() => setIndoorSubtype("budget")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BinnenSubtype === "budget"
+                                indoorSubtype === "budget"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
@@ -408,61 +403,61 @@ export function MatConfigurator() {
                         </div>
                       )}
 
-                      {/* Buiten Type */}
+                      {/* Outdoor Type */}
                       {visibleTypeBlock === "outdoor" && (
                         <div className="space-y-3">
-                          <Label className="text-sm font-medium">Buiten Type</Label>
+                          <Label className="text-sm font-medium">Outdoor Type</Label>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              onClick={() => setBuitenSubtype("Buiten1")}
+                              onClick={() => setOutdoorSubtype("outdoor1")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BuitenSubtype === "Buiten1"
+                                outdoorSubtype === "outdoor1"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Buiten 1</div>
-                              <div className="text-xs text-muted-foreground">Standard Buiten use</div>
+                              <div className="font-medium text-sm">Outdoor 1</div>
+                              <div className="text-xs text-muted-foreground">Standard outdoor use</div>
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => setBuitenSubtype("Buiten2")}
+                              onClick={() => setOutdoorSubtype("outdoor2")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BuitenSubtype === "Buiten2"
+                                outdoorSubtype === "outdoor2"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Buiten 2</div>
+                              <div className="font-medium text-sm">Outdoor 2</div>
                               <div className="text-xs text-muted-foreground">Extra scraper effect</div>
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => setBuitenSubtype("Buiten3")}
+                              onClick={() => setOutdoorSubtype("outdoor3")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BuitenSubtype === "Buiten3"
+                                outdoorSubtype === "outdoor3"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Buiten 3</div>
+                              <div className="font-medium text-sm">Outdoor 3</div>
                               <div className="text-xs text-muted-foreground">Heavy-duty option</div>
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => setBuitenSubtype("Buiten4")}
+                              onClick={() => setOutdoorSubtype("outdoor4")}
                               className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                BuitenSubtype === "Buiten4"
+                                outdoorSubtype === "outdoor4"
                                   ? "border-foreground bg-foreground/5"
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Buiten 4</div>
-                              <div className="text-xs text-muted-foreground">Premium Buiten finish</div>
+                              <div className="font-medium text-sm">Outdoor 4</div>
+                              <div className="text-xs text-muted-foreground">Premium outdoor finish</div>
                             </button>
                           </div>
                         </div>
