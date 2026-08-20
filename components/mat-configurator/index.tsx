@@ -482,7 +482,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="font-medium text-sm">Op de vloer</div>
-                            <div className="text-xs text-muted-foreground">Standard placement</div>
+                            <div className="text-xs text-muted-foreground">Standaard plaatsing</div>
                           </button>
 
                           <button
@@ -500,7 +500,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="font-medium text-sm">Inbouwframe</div>
-                            <div className="text-xs text-muted-foreground">Recessed mounting</div>
+                            <div className="text-xs text-muted-foreground">Verzonken plaatsing</div>
                           </button>
                         </div>
                       </div>
