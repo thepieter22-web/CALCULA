@@ -264,8 +264,13 @@ export function MatConfigurator() {
               <Layers className="w-5 h-5 text-background" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">Logo Mat Configurator</h1>
-              <p className="text-sm text-muted-foreground">Design your custom entrance mat</p>
+              <h1 className="text-xl font-semibold text-foreground">
+  Carpetz Logomat Configurator
+</h1>
+
+<p className="text-sm text-muted-foreground">
+  Upload je logo, kies jouw afmetingen en bestel jouw logomat online.
+</p>
             </div>
           </div>
 
