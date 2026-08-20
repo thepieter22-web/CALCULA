@@ -20,7 +20,7 @@ import { STANDARD_SIZES, type MatConfig, MAT_COLORS } from "@/lib/mat-config"
 import { Layers, Palette, Image as ImageIcon, ShoppingCart, RotateCcw, Plus, Minus } from "lucide-react"
 
 const DEFAULT_CONFIG: MatConfig = {
-  type: "Binnen",
+  type: "indoor",
   placement: "floor",
   orientation: "landscape",
   rubberBorder: true,
@@ -43,7 +43,7 @@ const DEFAULT_CONFIG: MatConfig = {
 
 type BinnenSubtype = "normal" | "eco" | "luxe" | "budget"
 type BuitenSubtype = "Buiten1" | "Buiten2" | "Buiten3" | "Buiten4"
-type VisibleTypeBlock = "Binnen" | "Buiten" | null
+type VisibleTypeBlock = "indoor" | "outdoor" | null
 
 export function MatConfigurator() {
   const [config, setConfig] = useState<MatConfig>(DEFAULT_CONFIG)
@@ -71,15 +71,15 @@ export function MatConfigurator() {
   }, [])
 
   const handleMatTypeChange = useCallback(
-    (type: "Binnen" | "Buiten") => {
+    (type: "indoor" | "outdoor") => {
       updateConfig({ type })
       setVisibleTypeBlock(type)
 
-      if (type === "Binnen") {
+      if (type === "indoor") {
         setBinnenSubtype("normal")
       }
 
-      if (type === "Buiten") {
+      if (type === "outdoor") {
         setBuitenSubtype("Buiten1")
       }
     },
@@ -322,9 +322,9 @@ export function MatConfigurator() {
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => handleMatTypeChange("Binnen")}
+                            onClick={() => handleMatTypeChange("indoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
-                              visibleTypeBlock === "Binnen"
+                              visibleTypeBlock === "indoor"
                                 ? "border-foreground bg-foreground/5"
                                 : "border-border hover:border-muted-foreground"
                             }`}
@@ -335,9 +335,9 @@ export function MatConfigurator() {
 
                           <button
                             type="button"
-                            onClick={() => handleMatTypeChange("Buiten")}
+                            onClick={() => handleMatTypeChange("outdoor")}
                             className={`p-3 rounded-lg border-2 transition-all text-left ${
-                              visibleTypeBlock === "Buiten"
+                              visibleTypeBlock === "outdoor"
                                 ? "border-foreground bg-foreground/5"
                                 : "border-border hover:border-muted-foreground"
                             }`}
@@ -349,7 +349,7 @@ export function MatConfigurator() {
                       </div>
 
                       {/* Binnen Type */}
-                      {visibleTypeBlock === "Binnen" && (
+                      {visibleTypeBlock === "indoor" && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Binnen Type</Label>
                           <div className="grid grid-cols-2 gap-2">
@@ -409,7 +409,7 @@ export function MatConfigurator() {
                       )}
 
                       {/* Buiten Type */}
-                      {visibleTypeBlock === "Buiten" && (
+                      {visibleTypeBlock === "outdoor" && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Buiten Type</Label>
                           <div className="grid grid-cols-2 gap-2">
