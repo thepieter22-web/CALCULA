@@ -272,7 +272,7 @@ export function MatConfigurator() {
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-2" />
-              Reset
+              Opnieuw starten
             </Button>      
 <Button size="sm" onClick={handleAddToCart}>
   <ShoppingCart className="w-4 h-4 mr-2" />
@@ -288,21 +288,21 @@ export function MatConfigurator() {
           {/* Configuration Panel */}
           <Card className="lg:sticky lg:top-24 lg:h-[calc(100vh-120px)] flex flex-col">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Configure Your Mat</CardTitle>
+              <CardTitle className="text-lg">Stel jouw logomat samen</CardTitle>
             </CardHeader>
 
             <CardContent className="flex-1 overflow-hidden p-0">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
-                  <TabsTrigger value="mat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="Logomat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Layers className="w-4 h-4" />
                     Mat
                   </TabsTrigger>
-                  <TabsTrigger value="colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="Kleuren" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Palette className="w-4 h-4" />
                     Colors
                   </TabsTrigger>
-                  <TabsTrigger value="logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="Logo Upload" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <ImageIcon className="w-4 h-4" />
                     Logo
                   </TabsTrigger>
@@ -771,7 +771,7 @@ export function MatConfigurator() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Live Preview</CardTitle>
+                  <CardTitle className="text-lg">Voorbeeld van jouw logomat</CardTitle>
                   <RenderPreview config={config} logoImage={logoImage} />
                 </div>
               </CardHeader>
