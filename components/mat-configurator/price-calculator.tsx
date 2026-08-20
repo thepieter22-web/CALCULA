@@ -24,17 +24,17 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Calculator className="w-5 h-5" />
-          Price Calculator
+          Jouw bestelling
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Mat type</span>
+            <span className="text-muted-foreground">Type logomat</span>
             <span className="font-medium capitalize">{config.type}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Size</span>
+            <span className="text-muted-foreground">Afmetingen</span>
             <span className="font-medium">
               {config.size.width} × {config.size.height} cm
               {config.size.isCustom && (
@@ -44,13 +44,13 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
           </div>
           {config.rubberBorder && (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Rubber border</span>
+              <span className="text-muted-foreground">Rubberen rand</span>
               <span className="font-medium text-green-600">+{PRICING.rubberBorder.percentage * 100}%</span>
             </div>
           )}
           {config.logoColors > 1 && (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Logo colors</span>
+              <span className="text-muted-foreground">Aantal logokleuren</span>
               <span className="font-medium">
                 {config.logoColors} (+€{((config.logoColors - 1) * PRICING.logoColors.extraPerColor).toFixed(2)})
               </span>
@@ -67,7 +67,7 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground flex items-center gap-1">
-              Quantity
+              Aantal
               {discountPercent > 0 && (
                 <Badge variant="secondary" className="text-xs gap-0.5">
                   <Percent className="w-3 h-3" />
@@ -83,24 +83,39 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">Subtotaall</span>
             <span className="font-medium">€{pricing.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">VAT ({PRICING.vat * 100}%)</span>
+            <span className="text-muted-foreground">BTW ({PRICING.vat * 100}%)</span>
             <span className="font-medium">€{pricing.vat.toFixed(2)}</span>
           </div>
         </div>
 
         <Separator />
 
-        <div className="flex justify-between items-center">
-          <span className="text-lg font-semibold flex items-center gap-1">
-            <Tag className="w-4 h-4" />
-            Total
-          </span>
-          <span className="text-2xl font-bold text-primary">€{pricing.total.toFixed(2)}</span>
-        </div>
+        <div className="rounded-lg bg-muted p-3 text-sm space-y-2">
+2
+<div>✅ Digitale proefdruk inbegrepen</div>
+3
+<div>✅ Productie na jouw goedkeuring</div>
+4
+<div>✅ Levering in België & Nederland</div>
+5
+</div>
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+  <div className="flex justify-between items-center">
+    <span className="text-lg font-semibold flex items-center gap-2">
+      <Tag className="w-4 h-4" />
+      Totaal incl. btw
+    </span>
+
+    <span className="text-3xl font-bold text-primary">
+      €{pricing.total.toFixed(2)}
+    </span>
+  </div>
+</div>
 
         {discountPercent > 0 && (
           <p className="text-xs text-center text-muted-foreground">
