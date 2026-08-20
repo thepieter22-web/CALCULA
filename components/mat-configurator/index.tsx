@@ -298,11 +298,11 @@ export function MatConfigurator() {
                     <Layers className="w-4 h-4" />
                     Logo Mat
                   </TabsTrigger>
-                  <TabsTrigger value="Colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="colors" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Palette className="w-4 h-4" />
                     Kleuren
                   </TabsTrigger>
-                  <TabsTrigger value="Logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="logo" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <ImageIcon className="w-4 h-4" />
                     Logo Upload
                   </TabsTrigger>
