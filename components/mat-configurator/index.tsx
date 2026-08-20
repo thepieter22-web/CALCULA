@@ -299,7 +299,7 @@ export function MatConfigurator() {
             <CardContent className="flex-1 overflow-hidden p-0">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
-                  <TabsTrigger value="logomat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
+                  <TabsTrigger value="mat" className="data-[state=active]:bg-muted rounded-b-none gap-1.5">
                     <Layers className="w-4 h-4" />
                     Logomat
                   </TabsTrigger>
