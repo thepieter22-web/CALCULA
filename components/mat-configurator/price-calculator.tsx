@@ -94,14 +94,10 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
 
         <Separator />
 
-        <div className="rounded-lg bg-muted p-3 text-sm space-y-2">
-2
-<div>✅ Digitale proefdruk inbegrepen</div>
-3
-<div>✅ Productie na jouw goedkeuring</div>
-4
-<div>✅ Levering in België & Nederland</div>
-5
+        <div className="rounded-lg bg-muted p-4 text-sm">
+  <p>✅ Digitale proefdruk inbegrepen</p>
+  <p>✅ Productie na jouw goedkeuring</p>
+  <p>✅ Levering in België & Nederland</p>
 </div>
 
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -117,21 +113,9 @@ export function PriceCalculator({ config }: PriceCalculatorProps) {
   </div>
 </div>
 
-        {discountPercent > 0 && (
-          <p className="text-xs text-center text-muted-foreground">
-            You save {discountPercent}% with quantity discount!
-          </p>
-        )}
+     
 
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p><strong>Volume discounts:</strong></p>
-          <ul className="list-disc list-inside space-y-0.5">
-            <li>5-9 units: 5% off</li>
-            <li>10-24 units: 10% off</li>
-            <li>25-49 units: 15% off</li>
-            <li>50+ units: 20% off</li>
-          </ul>
-        </div>
+       
       </CardContent>
     </Card>
   );
