@@ -325,7 +325,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="font-medium text-sm">Indoor</div>
-                            <div className="text-xs text-muted-foreground">Soft carpet finish</div>
+                            <div className="text-xs text-muted-foreground">Voor binnengebruik</div>
                           </button>
 
                           <button
@@ -338,7 +338,7 @@ export function MatConfigurator() {
                             }`}
                           >
                             <div className="font-medium text-sm">Outdoor</div>
-                            <div className="text-xs text-muted-foreground">Weather resistant</div>
+                            <div className="text-xs text-muted-foreground">Weerbestendig</div>
                           </button>
                         </div>
                       </div>
@@ -357,7 +357,7 @@ export function MatConfigurator() {
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Normal</div>
+                              <div className="font-medium text-sm">Classic</div>
                               <div className="text-xs text-muted-foreground">Betrouwbare logomat voor dagelijks gebruik</div>
                             </button>
 
@@ -383,7 +383,7 @@ export function MatConfigurator() {
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Luxe</div>
+                              <div className="font-medium text-sm">Elite</div>
                               <div className="text-xs text-muted-foreground">Premium afwerking en maximale levensduur</div>
                             </button>
 
@@ -396,8 +396,8 @@ export function MatConfigurator() {
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Onze populairste keuze voor bedrijven</div>
-                              <div className="text-xs text-muted-foreground">Entry-level option</div>
+                              <div className="font-medium text-sm">Professional</div>
+                              <div className="text-xs text-muted-foreground">Onze populairste keuze voor bedrijven</div>
                             </button>
                           </div>
                         </div>
