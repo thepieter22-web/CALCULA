@@ -253,6 +253,27 @@ export function MatConfigurator() {
   }, [])
 
   const selectedColor = MAT_COLORS.find((c) => c.code === config.colorCode)
+  const indoorInfo = {
+  normal: {
+    title: "Classic",
+    description: "Betrouwbare logomat voor dagelijks gebruik.",
+  },
+
+  eco: {
+    title: "Eco",
+    description: "Gemaakt met gerecycleerde materialen.",
+  },
+
+  budget: {
+    title: "Professional",
+    description: "Onze populairste keuze voor bedrijven.",
+  },
+
+  luxe: {
+    title: "Elite",
+    description: "Premium afwerking en maximale levensduur.",
+  },
+}
 
   return (
     <div className="min-h-screen bg-background">
