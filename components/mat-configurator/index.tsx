@@ -41,7 +41,7 @@ const DEFAULT_CONFIG: MatConfig = {
   logoColors: 1,
 }
 
-type IndoorSubtype = "normal" | "eco" | "luxe" | "budget"
+type IndoorSubtype = "eco" | "classic" | "professional" | "Elite"
 type OutdoorSubtype = "outdoor1" | "outdoor2" | "outdoor3" | "outdoor4"
 type VisibleTypeBlock = "indoor" | "outdoor" | null
 
@@ -358,7 +358,7 @@ export function MatConfigurator() {
                               }`}
                             >
                               <div className="font-medium text-sm">Normal</div>
-                              <div className="text-xs text-muted-foreground">Standard quality</div>
+                              <div className="text-xs text-muted-foreground">Betrouwbare logomat voor dagelijks gebruik</div>
                             </button>
 
                             <button
@@ -371,7 +371,7 @@ export function MatConfigurator() {
                               }`}
                             >
                               <div className="font-medium text-sm">Eco</div>
-                              <div className="text-xs text-muted-foreground">Sustainable option</div>
+                              <div className="text-xs text-muted-foreground">Gemaakt met gerecycleerde materialen</div>
                             </button>
 
                             <button
@@ -384,7 +384,7 @@ export function MatConfigurator() {
                               }`}
                             >
                               <div className="font-medium text-sm">Luxe</div>
-                              <div className="text-xs text-muted-foreground">Premium finish</div>
+                              <div className="text-xs text-muted-foreground">Premium afwerking en maximale levensduur</div>
                             </button>
 
                             <button
@@ -396,7 +396,7 @@ export function MatConfigurator() {
                                   : "border-border hover:border-muted-foreground"
                               }`}
                             >
-                              <div className="font-medium text-sm">Budget</div>
+                              <div className="font-medium text-sm">Onze populairste keuze voor bedrijven</div>
                               <div className="text-xs text-muted-foreground">Entry-level option</div>
                             </button>
                           </div>
