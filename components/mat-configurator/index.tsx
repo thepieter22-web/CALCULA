@@ -815,9 +815,11 @@ export function MatConfigurator() {
         <div className="xl:hidden mt-6">
           <PriceCalculator config={config} />
         </div>
-        <Card className="mt-6">
+        <Card className="mt-6 border-2 border-primary/20">
   <CardHeader>
-    <CardTitle>Meer informatie</CardTitle>
+    <CardTitle>
+  Productinformatie
+</CardTitle>
   </CardHeader>
 
   <CardContent>
